@@ -1,0 +1,46 @@
+[package]
+build = "build.rs"
+name = "simplepresenter"
+version = "2.0.0"
+edition = "2024"
+license = "MIT"
+description = "SimplePresenter: Bible and lyrics projection, in pure Rust"
+
+[dependencies]
+ureq = "3"
+eframe = { version = "0.36", default-features = false, features = ["default_fonts", "wgpu", "accesskit", "wayland", "x11"] }
+egui = "0.36"
+egui_extras = { version = "0.36", default-features = false }
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+rfd = "0.17"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+quick-xml = "0.38"
+directories = "6"
+log = "0.4"
+env_logger = "0.11"
+regex = "1"
+deckcraft-media = { path = "third_party/deckcraft/crates/media" }
+deckcraft-pptx = { path = "third_party/deckcraft/crates/pptx" }
+deckcraft-render = { path = "third_party/deckcraft/crates/render" }
+cpal = "0.16"
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "ws", "query"] }
+tokio = { version = "1", features = ["rt-multi-thread", "net", "sync", "time", "macros", "fs"] }
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "bmp", "webp"] }
+fontdb = "0.18"
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+
+[target.'cfg(any(windows, target_os = "macos"))'.dependencies]
+wry = "0.57"
+display-info = "0.5"
+raw-window-handle = "0.6"
+
+[target.'cfg(windows)'.build-dependencies]
+winresource = "0.1"

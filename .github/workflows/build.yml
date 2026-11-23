@@ -1,0 +1,82 @@
+name: build
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --release
+      - run: cargo build --release
+      - name: Package (zip + installer)
+        shell: pwsh
+        run: |
+          $ver = (Select-String -Path Cargo.toml -Pattern '^version = "(.*)"').Matches[0].Groups[1].Value
+          New-Item -ItemType Directory dist/SimplePresenter -Force | Out-Null
+          Copy-Item target/release/simplepresenter.exe dist/SimplePresenter/SimplePresenter.exe
+          Copy-Item -Recurse resources dist/SimplePresenter/resources
+          Compress-Archive dist/SimplePresenter dist/SimplePresenter-windows-x64.zip
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVer=$ver" packaging\SimplePresenter.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SimplePresenter-windows-x64
+          path: |
+            dist/SimplePresenter-windows-x64.zip
+            dist/SimplePresenter-Setup.exe
+
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --release
+      - run: |
+          cargo build --release --target aarch64-apple-darwin
+          cargo build --release --target x86_64-apple-darwin
+      - name: Universal app bundle
+        env:
+          MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+        run: |
+          APP=dist/SimplePresenter.app
+          mkdir -p $APP/Contents/MacOS $APP/Contents/Resources
+          lipo -create -output $APP/Contents/MacOS/SimplePresenter \
+            target/aarch64-apple-darwin/release/simplepresenter \
+            target/x86_64-apple-darwin/release/simplepresenter
+          cp -R resources $APP/Contents/Resources/resources
+          cp packaging/Info.plist $APP/Contents/Info.plist
+          cp packaging/SimplePresenter.icns $APP/Contents/Resources/SimplePresenter.icns
+          lipo -info $APP/Contents/MacOS/SimplePresenter
+          # Ad-hoc signature unless a Developer ID identity is configured in the keychain.
+          codesign --force --deep --options runtime --sign "${MACOS_SIGN_IDENTITY:--}" $APP
+          (cd dist && ditto -c -k --keepParent SimplePresenter.app SimplePresenter-macos-universal.zip)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SimplePresenter-macos-universal
+          path: dist/SimplePresenter-macos-universal.zip
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows, macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*

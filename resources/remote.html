@@ -1,0 +1,1210 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <link rel="icon" type="image/png" href="/logo.png">
+    <link rel="apple-touch-icon" href="/logo.png">
+    <title>SimplePresenter Remote</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        html, body { height: 100%; }
+        body {
+            background: #0f1115; color: #e8eaf0;
+            font-family: -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+            display: flex; flex-direction: column;
+            user-select: none; -webkit-user-select: none;
+        }
+        header { padding: 12px 16px 8px; border-bottom: 1px solid #23262f; }
+        .app-title { font-size: 11px; letter-spacing: 2px; color: #8a8f9e; text-transform: uppercase; }
+        #now-showing {
+            margin-top: 3px; font-size: 16px; font-weight: 600;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        #now-showing.empty { color: #5a5f6e; font-weight: 400; font-style: italic; }
+        #conn-dot {
+            float: right; width: 10px; height: 10px; border-radius: 50%;
+            background: #e5484d; margin-top: 2px;
+        }
+        #conn-dot.on { background: #30a46c; }
+
+        .controls { display: flex; gap: 10px; padding: 10px 16px; }
+        .controls button {
+            flex: 1; padding: 14px 0; font-size: 16px; font-weight: 700;
+            border: none; border-radius: 10px; color: #fff;
+            background: #262a35; cursor: pointer;
+        }
+        .controls button:active { transform: scale(0.96); filter: brightness(1.3); }
+        #btn-prev, #btn-next { background: #1d4ed8; }
+        #btn-clear { background: #7f1d1d; flex: 0.6; }
+
+        /* Media transport bar — visible only while media is playing */
+        #media-bar {
+            display: none; align-items: center; gap: 10px;
+            padding: 8px 16px; border-top: 1px solid #23262f; background: #12141a;
+        }
+        #media-bar.show { display: flex; }
+        #media-bar button {
+            flex-shrink: 0; width: 42px; height: 42px; border: none; border-radius: 10px;
+            background: #262a35; color: #fff; font-size: 16px; cursor: pointer;
+        }
+        #media-bar button:active { filter: brightness(1.4); }
+        #media-bar button.on { background: #1d4ed8; color: #fff; }
+        #media-seek {
+            flex: 1; -webkit-appearance: none; appearance: none; height: 6px;
+            border-radius: 3px; background: #2c303c; outline: none; cursor: pointer;
+        }
+        #media-seek::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none; width: 18px; height: 18px;
+            border-radius: 50%; background: #3b82f6;
+        }
+        #media-seek::-moz-range-thumb {
+            width: 18px; height: 18px; border: none; border-radius: 50%; background: #3b82f6;
+        }
+        #media-time {
+            flex-shrink: 0; font-size: 12px; color: #8a8f9e; font-variant-numeric: tabular-nums;
+            min-width: 88px; text-align: center;
+        }
+        #media-vol {
+            flex-shrink: 0; width: 74px; -webkit-appearance: none; appearance: none;
+            height: 5px; border-radius: 3px; background: #2c303c; outline: none; cursor: pointer;
+        }
+        #media-vol::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none; width: 14px; height: 14px;
+            border-radius: 50%; background: #6b7280;
+        }
+        #media-vol::-moz-range-thumb {
+            width: 14px; height: 14px; border: none; border-radius: 50%; background: #6b7280;
+        }
+
+        #panes { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+        .pane { flex: 1; overflow-y: auto; display: none; padding: 6px 14px 14px; }
+        .pane.active { display: block; }
+
+        #song-title {
+            padding: 2px 2px 6px; font-size: 13px; color: #8a8f9e;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .row {
+            display: flex; align-items: stretch; margin-bottom: 8px;
+            border-radius: 10px; overflow: hidden; background: #1a1d26;
+            border: 2px solid transparent; cursor: pointer;
+        }
+        .row:active { filter: brightness(1.4); }
+        .row .stripe { width: 8px; flex-shrink: 0; background: #4b5563; }
+        .row .body { padding: 11px 13px; min-width: 0; flex: 1; }
+        .row .label {
+            font-size: 14px; font-weight: 700; color: #e8eaf0;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .row .sub {
+            font-size: 12px; color: #9aa0ae; margin-top: 2px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .row.current { border-color: #f43f5e; }
+        .row.current .label::after { content: " \25B6"; color: #f43f5e; }
+        .row.hit { border-color: #3b82f6; }
+        .list-sep {
+            font-size: 11px; letter-spacing: 2px; color: #5a5f6e;
+            text-transform: uppercase; padding: 12px 4px 6px;
+        }
+        #bible-meta {
+            font-size: 12px; color: #8a8f9e; padding: 0 4px 8px;
+        }
+        .sec-header {
+            font-size: 15px; font-weight: 800; padding: 14px 6px 5px;
+        }
+        #btn-back-songs {
+            padding: 9px 18px; margin-bottom: 10px; font-size: 14px;
+            font-weight: 700; border: none; border-radius: 10px;
+            background: #262a35; color: #9aa0ae; cursor: pointer;
+        }
+        #btn-back-songs:active { filter: brightness(1.4); }
+        .dropdown {
+            width: 100%; padding: 10px 12px; font-size: 14px; font-weight: 600;
+            border-radius: 10px; border: 1px solid #2c303c;
+            background: #171a22; color: #e8eaf0; outline: none;
+            margin-bottom: 10px; appearance: none; -webkit-appearance: none;
+            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8'><path d='M1 1l5 5 5-5' stroke='%239aa0ae' stroke-width='2' fill='none'/></svg>");
+            background-repeat: no-repeat; background-position: right 12px center;
+        }
+        .dropdown:focus { border-color: #3b82f6; }
+        .badge {
+            font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 6px;
+            margin-left: 8px; vertical-align: 2px; letter-spacing: .5px;
+        }
+        .badge.bible { background: #164e63; color: #67e8f9; }
+        .badge.song { background: #14532d; color: #86efac; }
+        .badge.media { background: #4c1d95; color: #c4b5fd; }
+        .badge.video { background: #7c2d12; color: #fdba74; }
+        .badge.youtube { background: #7f1d1d; color: #fca5a5; }
+        .badge.medley { background: #713f12; color: #fde047; }
+        .badge.powerpoint { background: #7c2d12; color: #fdba74; }
+
+        #pos-bar {
+            padding: 0 6px 8px; font-size: 12px; color: #8a8f9e;
+            font-weight: 600; letter-spacing: .5px;
+        }
+        #btn-mediapp { display: none; }
+        .row .row-actions { display: flex; flex-shrink: 0; align-items: center; }
+        .row .row-actions button {
+            border: none; background: none; color: #6b7080;
+            font-size: 15px; padding: 6px 9px; cursor: pointer; font-weight: 700;
+        }
+        .row .row-actions button:active { color: #fff; }
+        .row .row-actions button.del { color: #7f1d1d; }
+        .row .row-actions button.del:active { color: #fca5a5; }
+        .row .row-actions button.add { color: #3b82f6; font-size: 18px; }
+        .row .row-actions button.add:active { color: #93c5fd; }
+        .searchbar { display: flex; gap: 8px; margin-bottom: 10px; }
+        .searchbar input {
+            flex: 1; padding: 12px 14px; font-size: 15px; border-radius: 10px;
+            border: 1px solid #2c303c; background: #171a22; color: #e8eaf0; outline: none;
+        }
+        .searchbar input:focus { border-color: #3b82f6; }
+        .searchbar button {
+            padding: 0 18px; font-size: 15px; font-weight: 700; border: none;
+            border-radius: 10px; background: #262a35; color: #fff; cursor: pointer;
+        }
+        .search-wrap { position: relative; flex: 1; display: flex; }
+        .search-wrap input { width: 100%; padding-right: 40px; }
+        .search-clear {
+            position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+            width: 26px; height: 26px; padding: 0 !important; border-radius: 50% !important;
+            background: #2c303c !important; color: #9aa0b0 !important;
+            font-size: 15px; line-height: 1; display: none; align-items: center;
+            justify-content: center;
+        }
+        .search-clear.show { display: flex; }
+        #bible-suggest {
+            display: none; position: absolute; top: 100%; left: 0; right: 0;
+            margin-top: 4px; background: #1c2029; border: 1px solid #2c303c;
+            border-radius: 10px; overflow-y: auto; max-height: 220px; z-index: 60;
+            box-shadow: 0 8px 24px rgba(0,0,0,.5);
+        }
+        #bible-suggest .suggest-item {
+            padding: 11px 14px; font-size: 15px; color: #d5d9e2; cursor: pointer;
+        }
+        #bible-suggest .suggest-item:active { background: #262a35; }
+        #bible-recent-wrap { position: relative; margin: 6px 0 2px; }
+        #bible-recent-toggle {
+            display: inline-flex; align-items: center; gap: 6px;
+            background: #1c2029; border: 1px solid #2c303c; border-radius: 16px;
+            color: #8b93a7; font-size: 12px; padding: 5px 12px; cursor: pointer;
+        }
+        #bible-recent-toggle.open { color: #6ea8fe; border-color: #3a4a6b; }
+        #bible-recent-toggle .cnt { color: #5a6274; }
+        #bible-recent-list {
+            display: none; position: absolute; top: 100%; left: 0; right: 0;
+            margin-top: 4px; background: #1c2029; border: 1px solid #2c303c;
+            border-radius: 10px; overflow-y: auto; max-height: 260px; z-index: 60;
+            box-shadow: 0 8px 24px rgba(0,0,0,.5);
+        }
+        #bible-recent-list .recent-item {
+            padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #232734;
+        }
+        #bible-recent-list .recent-item:last-child { border-bottom: none; }
+        #bible-recent-list .recent-item:active { background: #262a35; }
+        #bible-recent-list .r-ref { font-size: 14px; font-weight: 600; color: #e8ecf4; }
+        #bible-recent-list .r-text {
+            font-size: 12px; color: #8b93a7; margin-top: 2px;
+            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: lines; overflow: hidden;
+        }
+        #bible-recent-list .empty-note { padding: 14px; }
+
+        .empty-note {
+            color: #5a5f6e; text-align: center; padding: 40px 20px;
+            font-style: italic; font-size: 14px;
+        }
+
+        /* Slides pane */
+        #ppt-deck-bar {
+            display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+            min-height: 24px;
+        }
+        .spinner {
+            width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+            border: 3px solid #2c303c; border-top-color: #60a5fa;
+            animation: spin .8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        #btn-back-decks {
+            padding: 9px 18px; margin-bottom: 10px; font-size: 14px;
+            font-weight: 700; border: none; border-radius: 10px;
+            background: #262a35; color: #9aa0ae; cursor: pointer;
+        }
+        #btn-back-decks:active { filter: brightness(1.4); }
+        #ppt-deck-name {
+            flex: 1; font-size: 14px; font-weight: 700; color: #e8eaf0;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        #slide-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+        }
+        .slide-cell {
+            border-radius: 10px; overflow: hidden; background: #171a22;
+            border: 2px solid #2c303c; cursor: pointer;
+        }
+        .slide-cell:active { filter: brightness(1.4); }
+        .slide-cell img { display: block; width: 100%; aspect-ratio: 16/9; object-fit: cover; }
+        .slide-cell .slabel {
+            font-size: 11px; font-weight: 600; color: #9aa0ae;
+            padding: 5px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .slide-cell.current { border-color: #f43f5e; }
+        .slide-cell.current .slabel::after { content: " \25B6"; color: #f43f5e; }
+        .slide-cell.rendering {
+            aspect-ratio: 16/9; display: flex; align-items: center;
+            justify-content: center; color: #5a5f6e; font-size: 12px;
+        }
+
+        #toast {
+            position: fixed; left: 50%; bottom: 76px; transform: translateX(-50%) translateY(8px);
+            background: #1f2937; color: #d1d5db; border: 1px solid #374151;
+            padding: 9px 18px; border-radius: 20px; font-size: 13px; font-weight: 600;
+            opacity: 0; pointer-events: none; transition: opacity .18s, transform .18s;
+            z-index: 50; white-space: nowrap;
+        }
+        #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+        nav {
+            display: flex; border-top: 1px solid #23262f; background: #12141a;
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        nav button {
+            flex: 1; padding: 12px 0 10px; border: none; background: none;
+            color: #6b7080; font-size: 11px; font-weight: 700; cursor: pointer;
+            letter-spacing: .5px;
+        }
+        nav button svg {
+            display: block; width: 22px; height: 22px; margin: 0 auto 2px;
+            fill: none; stroke: currentColor; stroke-width: 2;
+            stroke-linecap: round; stroke-linejoin: round;
+        }
+        nav button svg .fill { fill: currentColor; stroke: none; }
+        nav button.active { color: #60a5fa; }
+
+        #welcome {
+            position: fixed; inset: 0; z-index: 100;
+            background: #0f1115; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; padding: 30px;
+        }
+        #welcome img { width: 120px; height: 120px; object-fit: contain; margin-bottom: 22px; }
+        .welcome-title { font-size: 26px; font-weight: 800; letter-spacing: 1px; }
+        .welcome-sub { font-size: 14px; color: #8a8f9e; margin: 6px 0 34px; letter-spacing: 3px; text-transform: uppercase; }
+        #btn-connect {
+            padding: 16px 60px; font-size: 18px; font-weight: 700;
+            border: none; border-radius: 14px; background: #1d4ed8; color: #fff;
+            cursor: pointer;
+        }
+        #btn-connect:active { transform: scale(0.96); filter: brightness(1.3); }
+    </style>
+</head>
+<body>
+    <div id="welcome">
+        <img src="/logo.png" alt="SimplePresenter">
+        <div class="welcome-title">SimplePresenter</div>
+        <div class="welcome-sub">Remote Control</div>
+        <button id="btn-connect">Connect</button>
+    </div>
+    <header>
+        <div><span id="conn-dot"></span><span class="app-title">SimplePresenter Remote</span></div>
+        <div id="now-showing" class="empty">Nothing projected</div>
+    </header>
+    <div class="controls">
+        <button id="btn-prev">&#9664; Prev</button>
+        <button id="btn-mediapp" title="Play/Pause media">&#9208;</button>
+        <button id="btn-clear">Clear</button>
+        <button id="btn-next">Next &#9654;</button>
+    </div>
+    <div id="media-bar">
+        <button id="btn-mplay" title="Play/Pause">&#10074;&#10074;</button>
+        <input type="range" id="media-seek" min="0" max="1000" value="0">
+        <span id="media-time">0:00</span>
+        <button id="btn-mfs" title="Fullscreen in OBS">&#x26F6;</button>
+        <input type="range" id="media-vol" min="0" max="100" value="50">
+    </div>
+    <div id="pos-bar"><span id="pos-label"></span></div>
+
+    <div id="panes">
+        <div class="pane" id="pane-songs">
+            <div id="song-detail-view" style="display:none">
+                <button id="btn-back-songs">&#9664; Back to songs</button>
+                <div id="song-title"></div>
+                <div id="sections"></div>
+            </div>
+            <div id="songs-list-view">
+                <div class="searchbar"><input id="song-filter" placeholder="Filter songs..." autocomplete="off"></div>
+                <div id="songs-list"><div class="empty-note">Loading...</div></div>
+            </div>
+        </div>
+        <div class="pane active" id="pane-bible">
+            <div class="searchbar">
+                <div class="search-wrap">
+                    <input id="bible-query" placeholder="John 3:16 or search text..." autocomplete="off">
+                    <button class="search-clear" id="bible-clear" title="Clear">&times;</button>
+                    <div id="bible-suggest"></div>
+                </div>
+                <button id="bible-go">Go</button>
+            </div>
+            <div id="bible-recent-wrap">
+                <button id="bible-recent-toggle">&#128336; Recent <span class="cnt" id="bible-recent-count"></span></button>
+                <div id="bible-recent-list"></div>
+            </div>
+            <select class="dropdown" id="translation-select"></select>
+            <div id="bible-meta"></div>
+            <div id="bible-results"><div class="empty-note">Search a reference or words</div></div>
+        </div>
+        <div class="pane" id="pane-media">
+            <select class="dropdown" id="media-folder"><option value="">All Media</option></select>
+            <div id="media-list"><div class="empty-note">Loading...</div></div>
+        </div>
+        <div class="pane" id="pane-playlist">
+            <div id="playlist-list"><div class="empty-note">Loading...</div></div>
+        </div>
+        <div class="pane" id="pane-slides">
+            <div id="ppt-detail-view" style="display:none">
+                <button id="btn-back-decks">&#9664; Presentations</button>
+                <div id="ppt-deck-bar">
+                    <span id="ppt-deck-name"></span>
+                    <span id="ppt-spinner" class="spinner" style="display:none"></span>
+                </div>
+                <div id="slide-grid"></div>
+            </div>
+            <div id="ppt-list-view">
+                <div id="ppt-decks"><div class="empty-note">Loading...</div></div>
+            </div>
+        </div>
+    </div>
+
+    <nav>
+        <button data-pane="pane-bible" class="active"><svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>Bible</button>
+        <button data-pane="pane-songs"><svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>Songs</button>
+        <button data-pane="pane-media"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polygon class="fill" points="10 8 16 12 10 16 10 8"/></svg>Media</button>
+        <button data-pane="pane-slides"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>Slides</button>
+        <button data-pane="pane-playlist"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>Playlist</button>
+    </nav>
+    <div id="toast"></div>
+
+    <script>
+        var ws = null;
+        var dot = document.getElementById('conn-dot');
+        var loaded = { songs: false, media: false, playlist: false, translations: false };
+        var allSongs = [];
+        var bibleBooks = [];
+        var slideVer = 0;  // bumped when deck changes -> refresh thumbnails
+
+        // Keep the screen awake while the remote is open â€” a phone locking
+        // mid-service is the classic operator failure.
+        var wakeLock = null;
+        function requestWakeLock() {
+            if (!('wakeLock' in navigator)) return;
+            navigator.wakeLock.request('screen')
+                .then(function(lock) { wakeLock = lock; })
+                .catch(function() {});
+        }
+        document.addEventListener('visibilitychange', function() {
+            if (document.visibilityState === 'visible' && !wakeLock) {
+                requestWakeLock();
+            }
+        });
+
+        function connect() {
+            ws = new WebSocket('ws://' + window.location.hostname + ':8081');
+            ws.onopen = function() {
+                dot.classList.add('on');
+                requestWakeLock();
+                // Warm every pane so nothing is stale when first opened
+                send('songs');
+                send('translations');
+                send('books');
+                send('playlist');
+                send('pptlibrary');
+                send('pptstate');
+            };
+            ws.onclose = function() {
+                dot.classList.remove('on');
+                setTimeout(connect, 2000);
+            };
+            ws.onmessage = function(ev) {
+                try {
+                    var msg = JSON.parse(ev.data);
+                    if (msg.type === 'remoteState') renderState(msg);
+                    else if (msg.type === 'songs') renderSongs(msg);
+                    else if (msg.type === 'bibleResults') renderBibleResults(msg);
+                    else if (msg.type === 'translations') renderTranslations(msg);
+                    else if (msg.type === 'books') bibleBooks = msg.items || [];
+                    else if (msg.type === 'media') renderMedia(msg);
+                    else if (msg.type === 'playlist') renderPlaylist(msg);
+                    else if (msg.type === 'pladdack') {
+                        var lbl = truncLabel(msg.name);
+                        showToast(msg.added
+                            ? ('\u2713 Added to playlist' + (lbl ? ': ' + lbl : ''))
+                            : ('Already in playlist' + (lbl ? ': ' + lbl : '')));
+                    }
+                    else if (msg.type === 'pptstate') renderPptState(msg);
+                    else if (msg.type === 'pptlibrary') renderPptLibrary(msg);
+                } catch (e) {}
+            };
+        }
+
+        function send(action, extra) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                var msg = { type: 'remote', action: action };
+                if (extra) for (var k in extra) msg[k] = extra[k];
+                ws.send(JSON.stringify(msg));
+            }
+        }
+
+        var toastTimer = null;
+        function showToast(text) {
+            var t = document.getElementById('toast');
+            t.textContent = text;
+            t.classList.add('show');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(function() { t.classList.remove('show'); }, 1600);
+        }
+        // The server acks each pladd with 'pladdack' once the item is actually
+        // in the playlist (or was already there) — the toast waits for that.
+        function addToPlaylist(payload, label) {
+            payload.label = label || '';
+            send('pladd', payload);
+        }
+        function truncLabel(s) {
+            s = String(s || '');
+            return s.length > 42 ? s.slice(0, 42) + '\u2026' : s;
+        }
+
+        function fmtTime(ms) {
+            if (typeof ms !== 'number' || ms < 0) return '--:--';
+            var s = Math.floor(ms / 1000);
+            var h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+            var mm = (h > 0 ? (m < 10 ? '0' : '') + m : m);
+            return (h > 0 ? h + ':' : '') + mm + ':' + (sec < 10 ? '0' : '') + sec;
+        }
+
+        // Media transport: send seek/volume on release ('change'), not per
+        // 'input' tick — position pushes arrive ~2 Hz anyway.
+        var mediaSeekDragging = false;
+        var mediaVolDragging = false;
+        var lastMediaDurationMs = -1;
+        var mediaSeekEl = document.getElementById('media-seek');
+        var mediaVolEl = document.getElementById('media-vol');
+        mediaSeekEl.addEventListener('pointerdown', function() { mediaSeekDragging = true; });
+        mediaSeekEl.addEventListener('input', function() { mediaSeekDragging = true; });
+        mediaSeekEl.addEventListener('change', function() {
+            mediaSeekDragging = false;
+            if (lastMediaDurationMs > 0) {
+                send('mediaseek', { positionMs: Math.round(this.value / 1000 * lastMediaDurationMs) });
+            }
+        });
+        mediaVolEl.addEventListener('pointerdown', function() { mediaVolDragging = true; });
+        mediaVolEl.addEventListener('input', function() { mediaVolDragging = true; });
+        mediaVolEl.addEventListener('change', function() {
+            mediaVolDragging = false;
+            send('mediavolume', { value: parseInt(this.value, 10) });
+        });
+
+        function esc(s) {
+            var d = document.createElement('div');
+            d.textContent = s;
+            return d.innerHTML;
+        }
+
+        // Scroll guard: a release only counts as a tap when the finger barely
+        // moved (<=10px) and was quick (<700ms). Scroll gestures are tracked
+        // document-wide so a finger that starts on one row and ends over
+        // another can never activate it. Passive listeners leave native
+        // scrolling untouched.
+        var lastTouch = null;
+        document.addEventListener('touchstart', function(e) {
+            if (e.touches.length === 1) {
+                var t = e.touches[0];
+                lastTouch = { x: t.clientX, y: t.clientY, t: Date.now(), cancelled: false };
+            } else {
+                lastTouch = null;
+            }
+        }, { passive: true, capture: true });
+        document.addEventListener('touchmove', function(e) {
+            if (!lastTouch || lastTouch.cancelled) {
+                return;
+            }
+            var t = e.touches[0];
+            if (Math.abs(t.clientX - lastTouch.x) > 10 || Math.abs(t.clientY - lastTouch.y) > 10) {
+                lastTouch.cancelled = true;
+            }
+        }, { passive: true, capture: true });
+        function wasRealTap() {
+            var ok = lastTouch && !lastTouch.cancelled && (Date.now() - lastTouch.t) < 700;
+            lastTouch = null;
+            return ok;
+        }
+
+        // Single-tap activation: on touch screens, a state push can rebuild the
+        // list between touchstart and touchend which cancels the synthesized
+        // click â€” the row then needs a "double tap" to fire. Binding touchend
+        // directly (and killing the ghost click) makes one tap always work.
+        function tap(el, fn) {
+            el.addEventListener('click', fn);
+            el.addEventListener('touchend', function(e) {
+                e.preventDefault();
+                if (wasRealTap()) {
+                    fn(e);
+                }
+            });
+        }
+
+        // Same for buttons inside a tappable row â€” swallows both events so the
+        // row's own tap handler doesn't also fire.
+        function actionTap(el, fn) {
+            el.addEventListener('click', function(e) {
+                e.stopPropagation();
+                fn(e);
+            });
+            el.addEventListener('touchend', function(e) {
+                e.stopPropagation();
+                e.preventDefault();
+                if (wasRealTap()) {
+                    fn(e);
+                }
+            });
+        }
+
+        var currentPane = 'pane-bible';
+
+        function showPane(id) {
+            currentPane = id;
+            document.querySelectorAll('.pane').forEach(function(p) {
+                p.classList.toggle('active', p.id === id);
+            });
+            document.querySelectorAll('nav button').forEach(function(b) {
+                b.classList.toggle('active', b.dataset.pane === id);
+            });
+            if (id === 'pane-songs' && !loaded.songs) send('songs');
+            if (id === 'pane-bible' && !loaded.translations) send('translations');
+            if (id === 'pane-media' && !loaded.media) send('media');
+            if (id === 'pane-playlist') send('playlist');
+            if (id === 'pane-slides') { send('pptlibrary'); send('pptstate'); }
+            updatePosLabel();
+        }
+
+        document.querySelectorAll('nav button').forEach(function(b) {
+            b.onclick = function() { showPane(b.dataset.pane); };
+        });
+
+        // Prev/Next follow the active pane: song sections, bible verses, or slides
+        document.getElementById('btn-prev').onclick = function() {
+            send(currentPane === 'pane-slides' ? 'pptprev'
+               : currentPane === 'pane-bible' ? 'bibleprev' : 'prev');
+        };
+        document.getElementById('btn-next').onclick = function() {
+            send(currentPane === 'pane-slides' ? 'pptnext'
+               : currentPane === 'pane-bible' ? 'biblenext' : 'next');
+        };
+        document.getElementById('btn-clear').onclick = function() { send('clear'); };
+        document.getElementById('btn-mediapp').onclick = function() { send('mediaplaypause'); };
+        document.getElementById('btn-mplay').onclick = function() { send('mediaplaypause'); };
+        document.getElementById('btn-mfs').onclick = function() { send('mediafullscreen'); };
+
+        // ---------- Live pane ----------
+
+        // Position indicator under the controls â€” context depends on the pane
+        var posData = { song: null, bible: null, slides: null };
+        function updatePosLabel() {
+            var el = document.getElementById('pos-label');
+            var d = currentPane === 'pane-songs'   ? posData.song
+                  : currentPane === 'pane-bible'   ? posData.bible
+                  : currentPane === 'pane-slides'  ? posData.slides
+                  : null;
+            el.textContent = d ? d.label + ' ' + d.cur + ' / ' + d.total : '';
+        }
+
+        function renderState(msg) {
+            var ns = document.getElementById('now-showing');
+            if (msg.nowShowing) {
+                ns.textContent = msg.nowShowing;
+                ns.classList.remove('empty');
+            } else {
+                ns.textContent = 'Nothing projected';
+                ns.classList.add('empty');
+            }
+
+            var ppBtn = document.getElementById('btn-mediapp');
+            ppBtn.style.display = msg.mediaPlaying ? 'inline-block' : 'none';
+            ppBtn.innerHTML = msg.mediaPaused ? '&#9654;' : '&#9208;';
+
+            // Media transport bar
+            var bar = document.getElementById('media-bar');
+            bar.classList.toggle('show', !!msg.mediaPlaying);
+            if (msg.mediaPlaying) {
+                var mplay = document.getElementById('btn-mplay');
+                mplay.innerHTML = msg.mediaPaused ? '&#9654;' : '&#10074;&#10074;';
+
+                var seek = document.getElementById('media-seek');
+                var durMs = msg.mediaDurationMs;
+                lastMediaDurationMs = (typeof durMs === 'number' && durMs > 0) ? durMs : -1;
+                seek.disabled = !(lastMediaDurationMs > 0);
+                if (!mediaSeekDragging && typeof msg.mediaPositionMs === 'number' &&
+                    msg.mediaPositionMs >= 0 && durMs > 0) {
+                    seek.value = Math.round(msg.mediaPositionMs / durMs * 1000);
+                }
+                document.getElementById('media-time').textContent =
+                    fmtTime(msg.mediaPositionMs) + ' / ' + fmtTime(durMs);
+
+                var vol = document.getElementById('media-vol');
+                if (!mediaVolDragging && typeof msg.mediaVolume === 'number' && msg.mediaVolume >= 0) {
+                    vol.value = msg.mediaVolume;
+                }
+                document.getElementById('btn-mfs').classList.toggle('on', !!msg.mediaFullscreen);
+            }
+
+            var song = msg.song;
+            // A different song arriving overrides "Back" and shows the detail view
+            if (song && song.title && song.title !== lastSongTitle) {
+                lastSongTitle = song.title;
+                backPressed = false;
+            }
+            if (!song || !song.sections || !song.sections.length) {
+                showSongDetail(false);
+                return;
+            }
+            if (!backPressed) showSongDetail(true);
+
+            var titleEl = document.getElementById('song-title');
+            var listEl = document.getElementById('sections');
+            listEl.innerHTML = '';
+            titleEl.textContent = song.title || '';
+            // App layout: a colored header labels each run once; lyric rows
+            // beneath share its color and are the tappable items
+            var lastLabel = '';
+            song.sections.forEach(function(sec, i) {
+                var color = sec.color || '#4b5563';
+                if (song.labeled && sec.label !== lastLabel) {
+                    lastLabel = sec.label;
+                    var hdr = document.createElement('div');
+                    hdr.className = 'sec-header';
+                    hdr.style.color = color;
+                    hdr.textContent = sec.label;
+                    listEl.appendChild(hdr);
+                }
+                var row = document.createElement('div');
+                row.className = 'row' + (i === song.current ? ' current' : '');
+                if (song.labeled) {
+                    row.style.background = color;
+                    row.innerHTML =
+                        '<div class="body">' +
+                            '<div class="label" style="color:#fff">' + esc(sec.preview || '') + '</div>' +
+                        '</div>' +
+                        '<div class="row-actions"><button class="add" title="Add to playlist" style="color:#fff">+</button></div>';
+                } else {
+                    row.innerHTML =
+                        '<div class="body">' +
+                            '<div class="label">' + esc(sec.preview || '') + '</div>' +
+                        '</div>' +
+                        '<div class="row-actions"><button class="add" title="Add to playlist">+</button></div>';
+                }
+                tap(row, function() { send('section', { index: i }); });
+                actionTap(row.querySelector('.add'), function() {
+                    var songTitle = document.getElementById('song-title').textContent;
+                    addToPlaylist({ kind: 'songsection', index: i },
+                                  songTitle ? songTitle + ' — ' + (sec.label || 'section') : '');
+                });
+                listEl.appendChild(row);
+            });
+            posData.song = { label: 'Section', cur: song.current + 1, total: song.sections.length };
+            updatePosLabel();
+        }
+
+        // ---------- Songs pane ----------
+
+        var backPressed = false;
+        var lastSongTitle = '';
+
+        function showSongDetail(show) {
+            document.getElementById('song-detail-view').style.display = show ? 'block' : 'none';
+            document.getElementById('songs-list-view').style.display = show ? 'none' : 'block';
+        }
+
+        document.getElementById('btn-back-songs').onclick = function() {
+            backPressed = true;
+            showSongDetail(false);
+        };
+
+        function renderSongs(msg) {
+            loaded.songs = true;
+            allSongs = msg.items || [];
+            paintSongs();
+        }
+
+        function paintSongs() {
+            var filter = document.getElementById('song-filter').value.toLowerCase();
+            var listEl = document.getElementById('songs-list');
+            listEl.innerHTML = '';
+            var shown = 0;
+            allSongs.forEach(function(s) {
+                if (filter && s.title.toLowerCase().indexOf(filter) < 0) return;
+                shown++;
+                var row = document.createElement('div');
+                row.className = 'row';
+                row.innerHTML =
+                    '<div class="body"><div class="label">' + esc(s.title) +
+                    (s.medley ? '<span class="badge medley">MEDLEY</span>' : '') +
+                    '</div></div>' +
+                    '<div class="row-actions"><button class="add" title="Add to playlist">+</button></div>';
+                tap(row, function() {
+                    send('song', { arg: s.title });
+                    backPressed = false;
+                    showSongDetail(true);
+                });
+                actionTap(row.querySelector('.add'), function() {
+                    addToPlaylist({ kind: 'song', arg: s.title }, s.title);
+                });
+                listEl.appendChild(row);
+            });
+            if (!shown) {
+                listEl.innerHTML = '<div class="empty-note">No songs match</div>';
+            }
+        }
+
+        document.getElementById('song-filter').oninput = paintSongs;
+
+        // ---------- Bible pane ----------
+
+        function doBibleSearch(project) {
+            var q = document.getElementById('bible-query').value.trim();
+            if (!q) return;
+            hideBibleSuggest();
+            document.getElementById('bible-results').innerHTML =
+                '<div class="empty-note">Searching...</div>';
+            document.getElementById('bible-meta').textContent = '';
+            // Enter/Go on a reference projects immediately, like the app
+            send(project ? 'biblego' : 'bible', { arg: q });
+        }
+
+        document.getElementById('bible-go').onclick = function() { doBibleSearch(true); };
+        document.getElementById('bible-query').onkeydown = function(e) {
+            if (e.key === 'Enter') doBibleSearch(true);
+        };
+
+        // × clear button — shows only while the field has text
+        var bibleQueryInput = document.getElementById('bible-query');
+        var bibleClearBtn = document.getElementById('bible-clear');
+        function syncBibleClear() {
+            bibleClearBtn.classList.toggle('show', bibleQueryInput.value.length > 0);
+        }
+        bibleQueryInput.addEventListener('input', syncBibleClear);
+        bibleClearBtn.addEventListener('click', function() {
+            bibleQueryInput.value = '';
+            syncBibleClear();
+            hideBibleSuggest();
+            bibleQueryInput.focus();
+        });
+        syncBibleClear();
+
+        // Book-name suggestions — prefix matches first, then substring,
+        // capped at 8. Typing past the book name ("John 3") stops matching
+        // because no book name starts with the full query.
+        var bibleSuggestEl = document.getElementById('bible-suggest');
+        function hideBibleSuggest() {
+            bibleSuggestEl.style.display = 'none';
+            bibleSuggestEl.innerHTML = '';
+        }
+        function updateBibleSuggest() {
+            var q = bibleQueryInput.value.trim().toLowerCase();
+            if (!q || !bibleBooks.length) { hideBibleSuggest(); return; }
+            var prefix = [], contains = [];
+            bibleBooks.forEach(function(b) {
+                var bl = b.toLowerCase();
+                if (bl.indexOf(q) === 0) prefix.push(b);
+                else if (bl.indexOf(q) >= 0) contains.push(b);
+            });
+            var matches = prefix.concat(contains).slice(0, 8);
+            if (!matches.length) { hideBibleSuggest(); return; }
+            bibleSuggestEl.innerHTML = '';
+            matches.forEach(function(b) {
+                var d = document.createElement('div');
+                d.className = 'suggest-item';
+                d.textContent = b;
+                actionTap(d, function() {
+                    bibleQueryInput.value = b + ' ';
+                    syncBibleClear();
+                    hideBibleSuggest();
+                    bibleQueryInput.focus();
+                });
+                bibleSuggestEl.appendChild(d);
+            });
+            bibleSuggestEl.style.display = 'block';
+        }
+        bibleQueryInput.addEventListener('input', updateBibleSuggest);
+        // Hide when tapping anywhere outside the field + dropdown
+        document.addEventListener('touchstart', function(e) {
+            if (bibleSuggestEl.style.display === 'block' &&
+                e.target !== bibleQueryInput &&
+                !bibleSuggestEl.contains(e.target)) {
+                hideBibleSuggest();
+            }
+        }, { passive: true, capture: true });
+        document.addEventListener('mousedown', function(e) {
+            if (bibleSuggestEl.style.display === 'block' &&
+                e.target !== bibleQueryInput &&
+                !bibleSuggestEl.contains(e.target)) {
+                hideBibleSuggest();
+            }
+        });
+
+        // Recent verses — collapsed dropdown under the search bar, persisted
+        // per-device in localStorage. Records verse taps and hit-marked
+        // results (covers prev/next navigation and direct reference searches).
+        var RECENT_KEY = 'sp.bibleRecent.v1';
+        var RECENT_MAX = 12;
+        var bibleRecent = [];
+        try { bibleRecent = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); } catch (e) {}
+        var recentWrap = document.getElementById('bible-recent-wrap');
+        var recentToggle = document.getElementById('bible-recent-toggle');
+        var recentList = document.getElementById('bible-recent-list');
+        var recentCount = document.getElementById('bible-recent-count');
+
+        function saveRecent() {
+            try { localStorage.setItem(RECENT_KEY, JSON.stringify(bibleRecent.slice(0, RECENT_MAX))); } catch (e) {}
+        }
+        function recordVerse(ref, text) {
+            if (!ref) return;
+            bibleRecent = bibleRecent.filter(function(r) { return r.ref !== ref; });
+            bibleRecent.unshift({ ref: ref, text: text || '' });
+            if (bibleRecent.length > RECENT_MAX) bibleRecent.length = RECENT_MAX;
+            saveRecent();
+            syncRecentUI();
+        }
+        function syncRecentUI() {
+            recentCount.textContent = bibleRecent.length ? '(' + bibleRecent.length + ')' : '';
+            if (recentList.style.display === 'block') renderRecentList();
+        }
+        function renderRecentList() {
+            recentList.innerHTML = '';
+            if (!bibleRecent.length) {
+                recentList.innerHTML = '<div class="empty-note">No recent verses yet</div>';
+                return;
+            }
+            bibleRecent.forEach(function(r) {
+                var d = document.createElement('div');
+                d.className = 'recent-item';
+                d.innerHTML = '<div class="r-ref">' + esc(r.ref) + '</div>' +
+                    (r.text ? '<div class="r-text">' + esc(r.text) + '</div>' : '');
+                actionTap(d, function() {
+                    recentList.style.display = 'none';
+                    recentToggle.classList.remove('open');
+                    send('verse', { arg: r.ref });
+                });
+                recentList.appendChild(d);
+            });
+        }
+        recentToggle.addEventListener('click', function() {
+            var open = recentList.style.display === 'block';
+            recentList.style.display = open ? 'none' : 'block';
+            recentToggle.classList.toggle('open', !open);
+            if (!open) renderRecentList();
+        });
+        // Tap outside closes the dropdown (covers touch + mouse)
+        document.addEventListener('touchstart', function(e) {
+            if (recentList.style.display === 'block' &&
+                !recentWrap.contains(e.target)) {
+                recentList.style.display = 'none';
+                recentToggle.classList.remove('open');
+            }
+        }, { passive: true, capture: true });
+        document.addEventListener('mousedown', function(e) {
+            if (recentList.style.display === 'block' &&
+                !recentWrap.contains(e.target)) {
+                recentList.style.display = 'none';
+                recentToggle.classList.remove('open');
+            }
+        });
+        syncRecentUI();
+
+        function renderTranslations(msg) {
+            loaded.translations = true;
+            var sel = document.getElementById('translation-select');
+            sel.innerHTML = '';
+            (msg.items || []).forEach(function(t) {
+                var opt = document.createElement('option');
+                opt.value = t.name;
+                opt.textContent = t.name;
+                if (t.current) opt.selected = true;
+                sel.appendChild(opt);
+            });
+        }
+
+        document.getElementById('translation-select').onchange = function(e) {
+            send('settranslation', { arg: e.target.value });
+        };
+
+        function renderBibleResults(msg) {
+            var metaEl = document.getElementById('bible-meta');
+            metaEl.textContent = msg.translation ? (msg.translation + ' \u2014 tap a verse to project') : '';
+            var listEl = document.getElementById('bible-results');
+            listEl.innerHTML = '';
+            var items = msg.items || [];
+            if (!items.length) {
+                listEl.innerHTML = '<div class="empty-note">No results for "' + esc(msg.query || '') + '"</div>';
+                return;
+            }
+            items.forEach(function(v) {
+                var row = document.createElement('div');
+                row.className = 'row' + (v.hit ? ' hit' : '');
+                row.innerHTML =
+                    '<div class="body">' +
+                        '<div class="label">' + esc(v.ref) + '<span class="badge bible">BIBLE</span></div>' +
+                        '<div class="sub">' + esc(v.text) + '</div>' +
+                    '</div>' +
+                    '<div class="row-actions"><button class="add" title="Add to playlist">+</button></div>';
+                tap(row, function() {
+                    recordVerse(v.ref, v.text);
+                    send('verse', { arg: v.ref });
+                });
+                actionTap(row.querySelector('.add'), function() {
+                    addToPlaylist({ kind: 'bible', arg: v.ref }, v.ref);
+                });
+                listEl.appendChild(row);
+            });
+            // The hit-marked verse is the one currently projected — record it
+            // too so prev/next navigation and reference searches land in history
+            var hitItem = items.find(function(v) { return v.hit; });
+            if (hitItem) recordVerse(hitItem.ref, hitItem.text);
+            var hitIdx = items.findIndex(function(v) { return v.hit; });
+            if (hitIdx >= 0) {
+                posData.bible = { label: 'Verse', cur: hitIdx + 1, total: items.length };
+                updatePosLabel();
+            }
+            var hit = listEl.querySelector('.hit');
+            if (hit) hit.scrollIntoView({ block: 'nearest' });
+        }
+
+        // ---------- Media pane ----------
+
+        var mediaItems = [];
+
+        function renderMedia(msg) {
+            loaded.media = true;
+            mediaItems = msg.items || [];
+
+            // Rebuild the folder dropdown, keeping the current selection
+            var sel = document.getElementById('media-folder');
+            var keep = sel.value;
+            var folders = {};
+            mediaItems.forEach(function(m) {
+                if (m.folder && m.folder !== '.') folders[m.folder] = true;
+            });
+            sel.innerHTML = '<option value="">All Media</option>';
+            Object.keys(folders).sort().forEach(function(f) {
+                var opt = document.createElement('option');
+                opt.value = f;
+                opt.textContent = f;
+                sel.appendChild(opt);
+            });
+            sel.value = (keep && folders[keep]) ? keep : '';
+
+            paintMedia();
+        }
+
+        function paintMedia() {
+            var folder = document.getElementById('media-folder').value;
+            var listEl = document.getElementById('media-list');
+            listEl.innerHTML = '';
+            var shown = 0;
+            mediaItems.forEach(function(m) {
+                var mf = (m.folder && m.folder !== '.') ? m.folder : '';
+                if (folder && mf !== folder) return;
+                shown++;
+                var row = document.createElement('div');
+                row.className = 'row';
+                var badge = m.isVideo ? '<span class="badge video">VIDEO</span>'
+                                      : '<span class="badge media">IMAGE</span>';
+                row.innerHTML =
+                    '<div class="body">' +
+                        '<div class="label">' + esc(m.name) + badge + '</div>' +
+                        (mf && !folder ? '<div class="sub">' + esc(mf) + '</div>' : '') +
+                    '</div>' +
+                    '<div class="row-actions"><button class="add" title="Add to playlist">+</button></div>';
+                tap(row, function() {
+                    send('projectmedia', { arg: m.path, isVideo: m.isVideo });
+                });
+                actionTap(row.querySelector('.add'), function() {
+                    addToPlaylist({ kind: 'media', arg: m.path, name: m.name, isVideo: m.isVideo }, m.name);
+                });
+                listEl.appendChild(row);
+            });
+            if (!shown) {
+                listEl.innerHTML = '<div class="empty-note">Media library is empty</div>';
+            }
+        }
+
+        document.getElementById('media-folder').onchange = paintMedia;
+
+        // ---------- Playlist pane ----------
+
+        function renderPlaylist(msg) {
+            loaded.playlist = true;
+            var listEl = document.getElementById('playlist-list');
+            listEl.innerHTML = '';
+            var items = msg.items || [];
+            if (!items.length) {
+                listEl.innerHTML = '<div class="empty-note">Playlist is empty</div>';
+                return;
+            }
+            items.forEach(function(it) {
+                var row = document.createElement('div');
+                row.className = 'row' + (it.index === msg.current ? ' current' : '');
+                row.innerHTML =
+                    '<div class="body">' +
+                        '<div class="label">' + esc(it.title) +
+                            '<span class="badge ' + it.kind + '">' + it.kind.toUpperCase() + '</span></div>' +
+                    '</div>' +
+                    '<div class="row-actions">' +
+                        '<button class="mv-up" title="Move up">&#9650;</button>' +
+                        '<button class="mv-dn" title="Move down">&#9660;</button>' +
+                        '<button class="del" title="Remove">&#10005;</button>' +
+                    '</div>';
+                actionTap(row.querySelector('.mv-up'), function() {
+                    send('plmove', { index: it.index, dir: -1 });
+                });
+                actionTap(row.querySelector('.mv-dn'), function() {
+                    send('plmove', { index: it.index, dir: 1 });
+                });
+                actionTap(row.querySelector('.del'), function() {
+                    send('plremove', { index: it.index });
+                });
+                tap(row, function() {
+                    send('plitem', { index: it.index });
+                    // Navigate to the context: song -> its sections, verse -> its results
+                    if (it.kind === 'song') {
+                        backPressed = false;
+                        showSongDetail(true);
+                        showPane('pane-songs');
+                    } else if (it.kind === 'bible' && it.ref) {
+                        var bq = document.getElementById('bible-query');
+                        bq.value = it.ref;
+                        bq.dispatchEvent(new Event('input'));
+                        send('bible', { arg: it.ref });
+                        showPane('pane-bible');
+                    } else if (it.kind === 'powerpoint') {
+                        pptBackPressed = false;
+                        showPptDetail(true);
+                        showPane('pane-slides');
+                    }
+                });
+                listEl.appendChild(row);
+            });
+            var cur = listEl.querySelector('.current');
+            if (cur) cur.scrollIntoView({ block: 'nearest' });
+        }
+
+        // ---------- Slides pane ----------
+
+        var lastDeck = '';
+        var lastSlideKey = '';
+        var lastPptCurrent = -1;
+        var pptBackPressed = false;
+
+        function showPptDetail(show) {
+            document.getElementById('ppt-detail-view').style.display = show ? 'block' : 'none';
+            document.getElementById('ppt-list-view').style.display = show ? 'none' : 'block';
+        }
+
+        document.getElementById('btn-back-decks').onclick = function() {
+            pptBackPressed = true;
+            showPptDetail(false);
+        };
+
+        function renderPptState(msg) {
+            var deck = msg.deck || '';
+            // A different deck arriving overrides "Back" and shows the detail view
+            if (deck !== lastDeck) { lastDeck = deck; pptBackPressed = false; slideVer++; }
+            if (!deck) { showPptDetail(false); }
+            else if (!pptBackPressed) { showPptDetail(true); }
+
+            document.getElementById('ppt-deck-name').textContent =
+                deck ? deck + (msg.rendering ? '  (rendering...)' : '') : 'No presentation loaded';
+            document.getElementById('ppt-spinner').style.display =
+                msg.rendering ? 'inline-block' : 'none';
+
+            var grid = document.getElementById('slide-grid');
+            var slides = msg.slides || [];
+
+            // Fingerprint the list itself â€” only rebuild the DOM (and re-fetch
+            // images) when the deck or slide set actually changes. Slide taps
+            // only move the highlight, no reload.
+            var key = deck + '|' + (msg.rendering ? 'r|' : '') +
+                slides.map(function(s) { return s.index + ':' + s.label; }).join(',');
+
+            if (key !== lastSlideKey) {
+                lastSlideKey = key;
+                grid.innerHTML = '';
+                if (!slides.length) {
+                    grid.innerHTML = deck
+                        ? '<div class="empty-note">Rendering slides...</div>'
+                        : '<div class="empty-note">Pick a presentation below</div>';
+                } else {
+                    slides.forEach(function(s) {
+                        var cell = document.createElement('div');
+                        cell.className = 'slide-cell';
+                        cell.dataset.idx = s.index;
+                        cell.innerHTML =
+                            '<img src="/slide/' + s.index + '.png?v=' + slideVer + '" loading="lazy" alt="">' +
+                            '<div class="slabel">' + esc(s.label) + '</div>';
+                        tap(cell, function() { send('pptslide', { index: s.index }); });
+                        grid.appendChild(cell);
+                    });
+                }
+            }
+
+            if (slides.length) {
+                posData.slides = { label: 'Slide', cur: msg.current, total: slides.length };
+                updatePosLabel();
+            }
+
+            var cells = grid.querySelectorAll('.slide-cell');
+            for (var i = 0; i < cells.length; i++) {
+                cells[i].classList.toggle('current',
+                    parseInt(cells[i].dataset.idx) === msg.current);
+            }
+            if (msg.current !== lastPptCurrent) {
+                lastPptCurrent = msg.current;
+                var curCell = grid.querySelector('.current');
+                if (curCell) curCell.scrollIntoView({ block: 'nearest' });
+            }
+        }
+
+        function renderPptLibrary(msg) {
+            var el = document.getElementById('ppt-decks');
+            el.innerHTML = '';
+            var items = msg.items || [];
+            if (!items.length) {
+                el.innerHTML = '<div class="empty-note">No presentations in library</div>';
+                return;
+            }
+            items.forEach(function(d) {
+                var row = document.createElement('div');
+                row.className = 'row' + (d.active ? ' current' : '');
+                row.innerHTML =
+                    '<div class="body"><div class="label">' + esc(d.name) +
+                        '<span class="badge powerpoint">PPT</span></div></div>' +
+                    '<div class="row-actions"><button class="add" title="Add to playlist">+</button></div>';
+                tap(row, function() {
+                    pptBackPressed = false;
+                    showPptDetail(true);
+                    send('pptload', { arg: d.path });
+                });
+                actionTap(row.querySelector('.add'), function() {
+                    addToPlaylist({ kind: 'powerpoint', arg: d.path }, d.name);
+                });
+                el.appendChild(row);
+            });
+        }
+
+        document.getElementById('btn-connect').onclick = function() {
+            document.getElementById('welcome').style.display = 'none';
+            connect();
+        };
+    </script>
+</body>
+</html>

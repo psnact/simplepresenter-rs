@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SimplePresenter Overlay</title>
+<style>
+html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+#wrap { position: absolute; inset: 0; display: flex; flex-direction: column; box-sizing: border-box; }
+#box { display: flex; flex-direction: column; }
+#box.hidden, .hidden { display: none !important; }
+.bracket-text { font-style: italic; }
+.media { position: absolute; object-fit: contain; background: #000; transition: all 0.35s ease; }
+.media.card { left: 50%; transform: translateX(-50%); border-radius: 12px; }
+.media.full { left: 0; top: 0; width: 100%; height: 100%; transform: none; border-radius: 0; }
+</style>
+<link rel="stylesheet" href="/overlay.css__PORTRAIT__" id="cfg">
+</head>
+<body>
+<div id="wrap"><div id="box" class="hidden"><div id="text"></div><div id="ref"></div></div></div>
+<video id="video" class="media card hidden" playsinline muted></video>
+<img id="img" class="media card hidden" alt="">
+<iframe id="yt" class="media card hidden" allow="autoplay; encrypted-media" frameborder="0"></iframe>
+<script>
+var last = {};
+var cssVersion = 0;
+function show(el, on) { el.classList.toggle('hidden', !on); }
+function render(d) {
+  document.body.style.visibility = d.blackout ? 'hidden' : 'visible';
+  if (d.textHtml !== last.textHtml) document.getElementById('text').innerHTML = d.textHtml;
+  if (d.reference !== last.reference) document.getElementById('ref').textContent = d.reference;
+  show(document.getElementById('box'), !!d.text);
+  show(document.getElementById('ref'), !!d.reference);
+  var video = document.getElementById('video'), img = document.getElementById('img');
+  if (d.mediaTimestamp !== last.mediaTimestamp || d.hasMedia !== last.hasMedia) {
+    show(video, false); show(img, false); video.removeAttribute('src');
+    if (d.hasMedia && d.mediaIsVideo) { video.src = '/media?t=' + d.mediaTimestamp; show(video, true); }
+    else if (d.hasMedia) { img.src = '/media?t=' + d.mediaTimestamp; show(img, true); }
+  }
+  var yt = document.getElementById('yt');
+  if (d.youTubeUrl !== last.youTubeUrl) {
+    if (d.hasYouTube) { yt.src = d.youTubeUrl; show(yt, true); } else { yt.removeAttribute('src'); show(yt, false); }
+  }
+  [video, img, yt].forEach(function (el) { el.classList.toggle('full', !!d.mediaFullscreen); el.classList.toggle('card', !d.mediaFullscreen); });
+  if (d.hasMedia && d.mediaIsVideo) {
+    if (Math.abs(video.currentTime * 1000 - d.mediaPositionMs) > 600) video.currentTime = d.mediaPositionMs / 1000;
+    if (d.mediaPlaying && video.paused) video.play().catch(function () {});
+    if (!d.mediaPlaying && !video.paused) video.pause();
+  }
+  if (d.styleVersion !== undefined && d.styleVersion !== cssVersion) {
+    cssVersion = d.styleVersion;
+    document.getElementById('cfg').href = '/overlay.css__PORTRAIT__' + ('__PORTRAIT__' ? '&' : '?') + 'v=' + cssVersion;
+  }
+  if (last.refreshTimestamp !== undefined && d.refreshTimestamp !== last.refreshTimestamp) location.reload();
+  last = d;
+}
+function tick() {
+  fetch('/data', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(render).catch(function () {});
+}
+setInterval(tick, 100);
+tick();
+</script>
+</body>
+</html>
