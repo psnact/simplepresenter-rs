@@ -593,11 +593,14 @@ pub fn can_delete(path: &Path) -> bool {
 
 pub fn available_bibles() -> Vec<PathBuf> {
     let dir = bible_directory();
-    if !has_xml(&dir) {
-        let bundled = crate::paths::resource_dir().join("Bible");
-        for src in list_xml(&bundled) {
-            if let Some(name) = src.file_name() {
-                let _ = std::fs::copy(&src, dir.join(name));
+    // Seed bundled Bibles that are not in the data folder yet (never overwrite
+    // the user's own copies, and add new bundled versions to existing installs).
+    let bundled = crate::paths::resource_dir().join("Bible");
+    for src in list_xml(&bundled) {
+        if let Some(name) = src.file_name() {
+            let dst = dir.join(name);
+            if !dst.exists() {
+                let _ = std::fs::copy(&src, dst);
             }
         }
     }
