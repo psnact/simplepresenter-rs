@@ -4,7 +4,6 @@ pub struct Display {
     pub label: String,
     /// Top-left corner in logical points.
     pub pos: [f32; 2],
-    pub primary: bool,
 }
 
 #[cfg(any(windows, target_os = "macos"))]
@@ -26,7 +25,6 @@ pub fn list() -> Vec<Display> {
             Display {
                 label,
                 pos: [d.x as f32 / scale, d.y as f32 / scale],
-                primary: d.is_primary,
             }
         })
         .collect()

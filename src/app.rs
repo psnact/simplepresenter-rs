@@ -2743,10 +2743,10 @@ impl App {
         let pos = match self.projector_pos {
             Some(p) => p,
             None => {
+                // Like the original app, the projection always opens fullscreen
+                // on the selected display (F11 / double-click / Esc toggles).
+                self.projector_fullscreen = true;
                 let d = self.displays.get(self.settings.projector_monitor);
-                if d.is_some_and(|d| !d.primary) {
-                    self.projector_fullscreen = true;
-                }
                 let p = d
                     .map(|d| [d.pos[0] + 40.0, d.pos[1] + 40.0])
                     .unwrap_or([80.0, 80.0]);
