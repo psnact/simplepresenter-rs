@@ -36,7 +36,7 @@ jobs:
             dist/SimplePresenter-Setup.exe
 
   macos:
-    runs-on: macos-14
+    runs-on: macos-13
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
