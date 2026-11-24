@@ -1610,6 +1610,17 @@ impl App {
             self.bible_ui.reference = format!("{book} ");
             self.bible_ui.suggestions_open = false;
             r.request_focus();
+            // The caret would otherwise stay where it was in the typed prefix
+            // ("Jo|hn"); move it after "John " so the chapter can be typed.
+            let end = self.bible_ui.reference.chars().count();
+            if let Some(mut state) = egui::widgets::text_edit::TextEditState::load(ui.ctx(), r.id) {
+                state
+                    .cursor
+                    .set_char_range(Some(egui::text::CCursorRange::one(
+                        egui::text::CCursor::new(end),
+                    )));
+                state.store(ui.ctx(), r.id);
+            }
             self.preview_reference();
         }
         ui.label("Search in Text:");
