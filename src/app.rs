@@ -1536,6 +1536,46 @@ impl App {
             let reference = self.bible_ui.reference.clone();
             self.project_reference(&reference);
         }
+        // Book-name suggestions while typing, like the original's completer popup.
+        // Suggestions disappear once chapter/verse digits are typed, because no
+        // book name starts with them.
+        let mut book_pick: Option<String> = None;
+        if r.has_focus()
+            && let Some(bible) = self.bible.as_ref()
+        {
+            let partial = self.bible_ui.reference.trim_start().to_string();
+            if !partial.is_empty() {
+                let lower = partial.to_lowercase();
+                let mut matches: Vec<String> = bible
+                    .autocomplete_book(&partial)
+                    .into_iter()
+                    .filter(|m| m.to_lowercase() != lower)
+                    .collect();
+                matches.truncate(8);
+                if !matches.is_empty() {
+                    let width = r.rect.width();
+                    let pos = egui::pos2(r.rect.left(), r.rect.bottom() + 2.0);
+                    egui::Area::new(ui.id().with("reference_book_suggestions"))
+                        .order(egui::Order::Foreground)
+                        .fixed_pos(pos)
+                        .show(ui.ctx(), |ui| {
+                            egui::Frame::popup(ui.style()).show(ui, |ui| {
+                                ui.set_min_width(width);
+                                for m in &matches {
+                                    if ui.selectable_label(false, m).clicked() {
+                                        book_pick = Some(m.clone());
+                                    }
+                                }
+                            });
+                        });
+                }
+            }
+        }
+        if let Some(book) = book_pick {
+            // Complete the book name and leave a space ready for the chapter.
+            self.bible_ui.reference = format!("{book} ");
+            self.preview_reference();
+        }
         ui.label("Search in Text:");
         rtl_row(ui, |ui| {
             let search = ui.button("Search").clicked();
