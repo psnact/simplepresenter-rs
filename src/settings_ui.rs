@@ -401,7 +401,7 @@ pub fn obs_text(ui: &mut Ui, cfg: &mut OverlayConfig, families: &[String]) {
     });
     shadow(ui, &mut cfg.text, id);
     outline(ui, &mut cfg.text, id);
-    highlight(ui, &mut cfg.text, id, true);
+    highlight(ui, &mut cfg.text, id, false);
 }
 
 /// OBS "Bible Reference Formatting Settings..." dialog body.
@@ -416,7 +416,7 @@ pub fn obs_reference(ui: &mut Ui, cfg: &mut OverlayConfig, families: &[String]) 
     });
     shadow(ui, &mut cfg.reference, id);
     outline(ui, &mut cfg.reference, id);
-    highlight(ui, &mut cfg.reference, id, true);
+    highlight(ui, &mut cfg.reference, id, false);
     group(ui, "Layout", |ui| {
         form(ui, "obsref-layout", |f| {
             f.row("Position:", |ui| {
