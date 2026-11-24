@@ -576,9 +576,9 @@ pub fn css(cfg: &OverlayConfig, portrait: bool) -> String {
         s += "#ref{display:none !important;}\n";
     }
     s += if portrait {
-        ".media.card{top:calc(95% - 32%);width:88%;height:32%;}\n"
+        ".media.card{top:calc(98% - 32%);width:88%;height:32%;}\n"
     } else {
-        ".media.card{top:calc(95% - 40%);width:40%;height:40%;}\n"
+        ".media.card{top:calc(98% - 40%);width:40%;height:40%;}\n"
     };
     s
 }
