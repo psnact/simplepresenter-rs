@@ -46,6 +46,7 @@ pub fn kind_of(path: &Path) -> Option<Kind> {
 
 struct Slot {
     path: String,
+    volume: f32,
     feed: Option<VideoFeed>,
     frame: Option<Arc<Frame>>,
     tex: Option<TextureHandle>,
@@ -121,6 +122,7 @@ impl Media {
             slot,
             Slot {
                 path: path.to_string(),
+                volume: volume.clamp(0.0, 1.0),
                 feed,
                 frame: None,
                 tex: None,
@@ -151,7 +153,7 @@ impl Media {
     }
 
     fn resume(&mut self, slot: u64, from: Option<f64>) {
-        let Some(path) = self.path(slot).map(str::to_string) else {
+        let Some((path, volume)) = self.slots.get(&slot).map(|s| (s.path.clone(), s.volume)) else {
             return;
         };
         let Ok(data) = std::fs::read(&path) else {
@@ -163,12 +165,24 @@ impl Media {
             .unwrap_or(0.0);
         let audio = slot == LIVE;
         let spec = VoiceSpec {
-            clip: ClipParams::default(),
+            clip: ClipParams {
+                volume,
+                ..ClipParams::default()
+            },
             looping: false,
             duration,
             audio,
         };
         self.player.play(slot, media_key(&path), &bytes, spec, from);
+    }
+
+    /// Change the volume of `slot` live (0.0 = silent, 1.0 = full).
+    pub fn set_volume(&mut self, slot: u64, volume: f32) {
+        let v = volume.clamp(0.0, 1.0);
+        if let Some(s) = self.slots.get_mut(&slot) {
+            s.volume = v;
+        }
+        self.player.set_volume(slot, v);
     }
 
     pub fn seek(&mut self, slot: u64, t: f64) {

@@ -313,6 +313,15 @@ impl Player {
         });
     }
 
+    /// Change the volume of voice `key` without restarting it.
+    pub fn set_volume(&mut self, key: u64, volume: f32) {
+        self.with(|m| {
+            if let Some(v) = m.voices.iter_mut().find(|v| v.key == key) {
+                v.spec.clip.volume = volume.clamp(0.0, 1.0);
+            }
+        });
+    }
+
     pub fn status(&self, key: u64) -> Option<VoiceStatus> {
         self.with(|m| {
             m.voices.iter().find(|v| v.key == key).map(|v| VoiceStatus {
@@ -474,6 +483,21 @@ mod tests {
         // Past the end: silence, and the voice has ended.
         assert_eq!(buf[22], 0.0);
         assert_eq!(m.voices[0].state, PlayState::Ended);
+    }
+
+    #[test]
+    fn set_volume_changes_live_gain() {
+        let mut p = Player::new(None);
+        let b: Bytes = Arc::new(vec![]);
+        let mut s = spec(10.0, false);
+        s.clip.volume = 1.0;
+        p.play(3, 3, &b, s, None);
+        p.set_volume(3, 0.5);
+        let vol = p.with(|m| m.voices.iter().find(|v| v.key == 3).map(|v| v.spec.clip.volume));
+        assert_eq!(vol, Some(0.5));
+        p.set_volume(3, 2.0);
+        let vol = p.with(|m| m.voices.iter().find(|v| v.key == 3).map(|v| v.spec.clip.volume));
+        assert_eq!(vol, Some(1.0));
     }
 
     #[test]

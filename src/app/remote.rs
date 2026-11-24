@@ -550,6 +550,7 @@ impl App {
                     .filter(|v| v.is_finite())
                 {
                     self.media_volume = (v / 100.0).clamp(0.0, 1.0) as f32;
+                    self.media.set_volume(media::LIVE, self.media_volume);
                 }
             }
             "mediafullscreen" => self.media_fullscreen = !self.media_fullscreen,

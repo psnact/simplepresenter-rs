@@ -2359,11 +2359,15 @@ impl App {
             ));
             rtl_row(ui, |ui| {
                 ui.checkbox(&mut self.media_loop, "Loop");
-                ui.add_sized(
-                    [110.0, ui.spacing().interact_size.y],
-                    egui::Slider::new(&mut self.media_volume, 0.0..=1.0).show_value(false),
-                )
-                .on_hover_text("Volume");
+                let vol = ui
+                    .add_sized(
+                        [110.0, ui.spacing().interact_size.y],
+                        egui::Slider::new(&mut self.media_volume, 0.0..=1.0).show_value(false),
+                    )
+                    .on_hover_text("Volume");
+                if vol.changed() {
+                    self.media.set_volume(media::LIVE, self.media_volume);
+                }
                 if dur > 0.0 {
                     ui.spacing_mut().slider_width = (ui.available_width() - 8.0).max(40.0);
                     if ui
