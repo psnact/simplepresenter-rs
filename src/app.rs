@@ -3191,6 +3191,7 @@ impl App {
                         4 => {
                             let o = &mut self.settings.obs_overlay;
                             o.text = d.obs_overlay.text;
+                            o.line_spacing = d.obs_overlay.line_spacing;
                         }
                         5 => {
                             let o = &mut self.settings.obs_overlay;

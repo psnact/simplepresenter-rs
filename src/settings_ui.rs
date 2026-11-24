@@ -234,11 +234,11 @@ fn highlight(ui: &mut Ui, st: &mut TextStyle, id: &str, width_controls: bool) {
     });
 }
 
-/// Line spacing as the original's whole percent (100–200).
-fn spacing_percent(ui: &mut Ui, spacing: &mut f32) -> bool {
-    let mut pct = (*spacing * 100.0).round().clamp(100.0, 200.0) as u32;
+/// Line spacing as a whole percent within `min..=max`.
+fn spacing_percent(ui: &mut Ui, spacing: &mut f32, min: u32, max: u32) -> bool {
+    let mut pct = (*spacing * 100.0).round().clamp(min as f32, max as f32) as u32;
     let changed = ui
-        .add(egui::Slider::new(&mut pct, 100..=200).suffix("%"))
+        .add(egui::Slider::new(&mut pct, min..=max).suffix("%"))
         .changed();
     *spacing = pct as f32 / 100.0;
     changed
@@ -253,7 +253,7 @@ pub fn song_lyrics(ui: &mut Ui, cfg: &mut OverlayConfig, families: &[String]) {
             size_row(f, "Font Size:", &mut cfg.text.size);
             f.row("Text Color:", |ui| color(ui, &mut cfg.text.color));
             f.row("Line Spacing:", |ui| {
-                spacing_percent(ui, &mut cfg.line_spacing)
+                spacing_percent(ui, &mut cfg.line_spacing, 100, 200)
             });
             f.row("Text Alignment:", |ui| {
                 combo(ui, "song-align", &mut cfg.text.align, &ALIGN)
@@ -394,6 +394,9 @@ pub fn obs_text(ui: &mut Ui, cfg: &mut OverlayConfig, families: &[String]) {
             font_row(f, &mut cfg.text, families, id, "Font:");
             size_row(f, "Font Size:", &mut cfg.text.size);
             f.row("Text Color:", |ui| color(ui, &mut cfg.text.color));
+            f.row("Line Spacing:", |ui| {
+                spacing_percent(ui, &mut cfg.line_spacing, 50, 200)
+            });
         });
     });
     shadow(ui, &mut cfg.text, id);

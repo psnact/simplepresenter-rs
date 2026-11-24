@@ -138,6 +138,7 @@ impl App {
         cfg.reference_pos = obs.reference_pos;
         cfg.reference_spacing = obs.reference_spacing;
         cfg.display_version = obs.display_version;
+        cfg.line_spacing = obs.line_spacing;
         if self.server_style.as_ref() != Some(&cfg) {
             self.server_style = Some(cfg.clone());
             self.server_style_version += 1;
