@@ -68,6 +68,7 @@ struct BibleUi {
     selected: Option<u32>,
     focus_reference: bool,
     scroll: bool,
+    suggestions_open: bool,
 }
 
 #[derive(Default)]
@@ -1538,42 +1539,77 @@ impl App {
         }
         // Book-name suggestions while typing, like the original's completer popup.
         // Suggestions disappear once chapter/verse digits are typed, because no
-        // book name starts with them.
+        // book name starts with them. The popup keeps its own open state because
+        // clicking a suggestion surrenders the text field's focus on mouse-down,
+        // which would otherwise unmount the popup before the click lands.
         let mut book_pick: Option<String> = None;
-        if r.has_focus()
-            && let Some(bible) = self.bible.as_ref()
-        {
+        if ui.input(|i| i.key_pressed(Key::Escape)) {
+            self.bible_ui.suggestions_open = false;
+        }
+        let want_suggestions = r.has_focus() || self.bible_ui.suggestions_open;
+        if want_suggestions && let Some(bible) = self.bible.as_ref() {
             let partial = self.bible_ui.reference.trim_start().to_string();
-            if !partial.is_empty() {
-                let lower = partial.to_lowercase();
-                let mut matches: Vec<String> = bible
-                    .autocomplete_book(&partial)
-                    .into_iter()
-                    .filter(|m| m.to_lowercase() != lower)
-                    .collect();
-                matches.truncate(8);
-                if !matches.is_empty() {
-                    let width = r.rect.width();
-                    let pos = egui::pos2(r.rect.left(), r.rect.bottom() + 2.0);
-                    egui::Area::new(ui.id().with("reference_book_suggestions"))
-                        .order(egui::Order::Foreground)
-                        .fixed_pos(pos)
-                        .show(ui.ctx(), |ui| {
-                            egui::Frame::popup(ui.style()).show(ui, |ui| {
-                                ui.set_min_width(width);
-                                for m in &matches {
-                                    if ui.selectable_label(false, m).clicked() {
-                                        book_pick = Some(m.clone());
-                                    }
+            let lower = partial.to_lowercase();
+            let mut matches: Vec<String> = bible
+                .autocomplete_book(&partial)
+                .into_iter()
+                .filter(|m| m.to_lowercase() != lower)
+                .collect();
+            matches.truncate(8);
+            if !partial.is_empty() && !matches.is_empty() {
+                let width = r.rect.width();
+                let pos = egui::pos2(r.rect.left(), r.rect.bottom() + 2.0);
+                let area = egui::Area::new(ui.id().with("reference_book_suggestions"))
+                    .order(egui::Order::Foreground)
+                    .fixed_pos(pos)
+                    .show(ui.ctx(), |ui| {
+                        egui::Frame::popup(ui.style()).show(ui, |ui| {
+                            ui.set_min_width(width);
+                            // Full-width rows: a selectable_label only allocates
+                            // its text width, which makes most of the row unclickable.
+                            let row_w = ui.available_width();
+                            let row_h = ui.spacing().interact_size.y;
+                            for m in &matches {
+                                let (rect, resp) = ui.allocate_exact_size(
+                                    egui::vec2(row_w, row_h),
+                                    egui::Sense::click(),
+                                );
+                                if resp.hovered() {
+                                    ui.painter().rect_filled(
+                                        rect,
+                                        2.0,
+                                        ui.visuals().widgets.hovered.bg_fill,
+                                    );
                                 }
-                            });
+                                ui.painter().text(
+                                    rect.left_center()
+                                        + egui::vec2(ui.spacing().item_spacing.x, 0.0),
+                                    egui::Align2::LEFT_CENTER,
+                                    m,
+                                    egui::TextStyle::Body.resolve(ui.style()),
+                                    ui.visuals().text_color(),
+                                );
+                                if resp.clicked() {
+                                    book_pick = Some(m.clone());
+                                }
+                            }
                         });
-                }
+                    });
+                let interacting =
+                    area.response.hovered() || area.response.is_pointer_button_down_on();
+                self.bible_ui.suggestions_open =
+                    book_pick.is_none() && (r.has_focus() || interacting);
+            } else {
+                self.bible_ui.suggestions_open = false;
             }
+        } else {
+            self.bible_ui.suggestions_open = false;
         }
         if let Some(book) = book_pick {
             // Complete the book name and leave a space ready for the chapter.
             self.bible_ui.reference = format!("{book} ");
+            self.bible_ui.suggestions_open = false;
+            r.request_focus();
             self.preview_reference();
         }
         ui.label("Search in Text:");
