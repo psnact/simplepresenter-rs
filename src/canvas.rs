@@ -347,37 +347,69 @@ pub fn paint(p: &Painter, rect: Rect, f: &Frame, _ctx: &egui::Context) {
     // a full padding of side space.
     let hl_pad_y = (cfg.padding / 2.0).max(0.0);
     let ref_pad_x = cfg.padding.max(0.0);
-    // Line spacing never goes below the point where the fixed-height highlight boxes
-    // (with their normal padding) would overlap; the padding itself never shrinks.
-    let spacing_min = if cfg.text.highlight {
-        (1.0 + 2.0 * hl_pad_y / (cfg.text.size.max(1.0) * 1.2)).min(3.0)
-    } else {
-        1.0
-    };
-    let line_spacing = if cfg.line_spacing <= 1.01 {
-        cfg.line_spacing
-    } else {
-        cfg.line_spacing.max(spacing_min).min(3.0)
-    };
-    let main_b = Block {
-        galley: p.layout_job(job(
-            main,
-            &cfg.text,
-            scale,
-            width,
-            line_spacing,
-            f.fonts,
-            true,
-        )),
-        style: cfg.text.clone(),
-        spacing: line_spacing,
-    };
-    let ref_b = reference.filter(|r| !r.trim().is_empty()).map(|r| Block {
-        galley: p.layout_job(job(r, &cfg.reference, scale, width, 1.0, f.fonts, false)),
-        spacing: 1.0,
-        style: cfg.reference.clone(),
-    });
     let gap = cfg.reference_spacing.clamp(0.0, 400.0) * scale;
+    let separate = cfg.separate_reference_area && reference.is_some_and(|r| !r.trim().is_empty());
+    // Like the original app, shrink the main and reference fonts together until a
+    // long verse fits within 85% of the canvas height, down to minimum sizes.
+    let max_h = rect.height() * 0.85;
+    let mut main_style = cfg.text.clone();
+    let mut ref_style = cfg.reference.clone();
+    let (main_b, ref_b) = loop {
+        // Line spacing never goes below the point where the fixed-height highlight
+        // boxes (with their normal padding) would overlap; the padding never shrinks.
+        let spacing_min = if main_style.highlight {
+            (1.0 + 2.0 * hl_pad_y / (main_style.size.max(1.0) * 1.2)).min(3.0)
+        } else {
+            1.0
+        };
+        let line_spacing = if cfg.line_spacing <= 1.01 {
+            cfg.line_spacing
+        } else {
+            cfg.line_spacing.max(spacing_min).min(3.0)
+        };
+        let main_b = Block {
+            galley: p.layout_job(job(
+                main,
+                &main_style,
+                scale,
+                width,
+                line_spacing,
+                f.fonts,
+                true,
+            )),
+            style: main_style.clone(),
+            spacing: line_spacing,
+        };
+        let ref_b = reference.filter(|r| !r.trim().is_empty()).map(|r| Block {
+            galley: p.layout_job(job(r, &ref_style, scale, width, 1.0, f.fonts, false)),
+            spacing: 1.0,
+            style: ref_style.clone(),
+        });
+        let text_h = main_b.height()
+            + ref_b
+                .as_ref()
+                .map(|b| b.height() + if separate { 0.0 } else { gap })
+                .unwrap_or(0.0);
+        let occupied = cfg.padding.max(0.0) * scale * 2.0 + text_h;
+        let fits = occupied <= max_h
+            && (!separate
+                || main_b.height()
+                    + ref_b.as_ref().map(|b| b.height()).unwrap_or(0.0)
+                    + cfg.padding.max(0.0) * scale * 2.0
+                    <= max_h);
+        let at_min = main_style.size <= 16.0 && ref_style.size <= 12.0;
+        if fits || at_min {
+            break (main_b, ref_b);
+        }
+        let ratio = (max_h / occupied.max(1.0)).clamp(0.70, 0.95);
+        let new_main = (main_style.size * ratio).max(16.0);
+        let new_ref = (ref_style.size * ratio).max(12.0);
+        if new_main == main_style.size && new_ref == ref_style.size {
+            break (main_b, ref_b);
+        }
+        main_style.size = new_main;
+        ref_style.size = new_ref;
+    };
     let mut bounds = Rect::NOTHING;
     if cfg.separate_reference_area
         && let Some(r) = ref_b
