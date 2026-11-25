@@ -4,6 +4,8 @@ pub struct Display {
     pub label: String,
     /// Top-left corner in logical points.
     pub pos: [f32; 2],
+    /// Size in logical points.
+    pub size: [f32; 2],
 }
 
 #[cfg(any(windows, target_os = "macos"))]
@@ -25,6 +27,7 @@ pub fn list() -> Vec<Display> {
             Display {
                 label,
                 pos: [d.x as f32 / scale, d.y as f32 / scale],
+                size: [d.width as f32 / scale, d.height as f32 / scale],
             }
         })
         .collect()

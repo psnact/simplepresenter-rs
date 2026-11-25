@@ -116,6 +116,10 @@ pub struct App {
     projector_open: bool,
     projector_fullscreen: bool,
     projector_pos: Option<[f32; 2]>,
+    /// Projection Display setting the live projector viewport was created for.
+    projector_monitor: Option<usize>,
+    /// Switch the just-created projector viewport to fullscreen on the next frame.
+    projector_fs_pending: bool,
     displays: Vec<crate::displays::Display>,
     textures: HashMap<String, Option<TextureHandle>>,
     status: String,
@@ -200,6 +204,8 @@ impl App {
             projector_open: false,
             projector_fullscreen: false,
             projector_pos: None,
+            projector_monitor: None,
+            projector_fs_pending: false,
             displays: crate::displays::list(),
             textures: HashMap::new(),
             status: String::new(),
@@ -2781,31 +2787,61 @@ impl App {
     fn projector(&mut self, ctx: &egui::Context) {
         if !self.projector_open {
             self.projector_pos = None;
+            self.projector_monitor = None;
+            self.projector_fs_pending = false;
             return;
+        }
+        // The Projection Display setting changed while the projection is open:
+        // recreate the viewport so it lands on the newly selected monitor.
+        if self.projector_pos.is_some()
+            && self.projector_monitor != Some(self.settings.projector_monitor)
+        {
+            ctx.send_viewport_cmd_to(projector_id(), ViewportCommand::Close);
+            self.projector_pos = None;
+            self.projector_monitor = None;
+            self.projector_fs_pending = false;
+            return;
+        }
+        if self.projector_fs_pending {
+            self.projector_fs_pending = false;
+            ctx.send_viewport_cmd_to(projector_id(), ViewportCommand::Fullscreen(true));
         }
         let mut close = false;
         let mut toggle_fs = false;
-        let pos = match self.projector_pos {
-            Some(p) => p,
+        let (pos, size) = match self.projector_pos {
+            Some(p) => (p, [960.0, 540.0]),
             None => {
-                // Like the original app, the projection always opens fullscreen
-                // on the selected display (F11 / double-click / Esc toggles).
+                // Like the original app, the projection opens fullscreen on the
+                // selected display (F11 / double-click / Esc toggles). The window
+                // is created on that display first and switched to fullscreen on
+                // the next frame: a window created fullscreen goes to the primary
+                // monitor no matter where it was positioned.
                 self.projector_fullscreen = true;
-                let d = self.displays.get(self.settings.projector_monitor);
-                let p = d
-                    .map(|d| [d.pos[0] + 40.0, d.pos[1] + 40.0])
-                    .unwrap_or([80.0, 80.0]);
-                self.projector_pos = Some(p);
-                p
+                self.projector_fs_pending = true;
+                self.projector_monitor = Some(self.settings.projector_monitor);
+                let idx = self
+                    .settings
+                    .projector_monitor
+                    .min(self.displays.len().saturating_sub(1));
+                match self.displays.get(idx) {
+                    Some(d) => {
+                        self.projector_pos = Some(d.pos);
+                        (d.pos, d.size)
+                    }
+                    None => {
+                        self.projector_pos = Some([80.0, 80.0]);
+                        ([80.0, 80.0], [960.0, 540.0])
+                    }
+                }
             }
         };
         ctx.show_viewport_immediate(
             projector_id(),
             ViewportBuilder::default()
                 .with_title("SimplePresenter — Projection")
-                .with_inner_size([960.0, 540.0])
+                .with_inner_size(size)
                 .with_position(pos)
-                .with_fullscreen(self.projector_fullscreen),
+                .with_fullscreen(false),
             |ui, _class| {
                 egui::CentralPanel::default()
                     .frame(egui::Frame::NONE.fill(Color32::BLACK))
@@ -2853,6 +2889,8 @@ impl App {
             self.projector_open = false;
             self.projector_fullscreen = false;
             self.projector_pos = None;
+            self.projector_monitor = None;
+            self.projector_fs_pending = false;
         }
     }
 
