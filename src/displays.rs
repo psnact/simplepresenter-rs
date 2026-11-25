@@ -14,11 +14,16 @@ pub fn list() -> Vec<Display> {
     all.iter()
         .enumerate()
         .map(|(i, d)| {
+            // display-info reports Windows displays in physical pixels, but macOS
+            // displays already in points (what winit expects) — only rescale on Windows.
+            #[cfg(target_os = "windows")]
             let scale = if d.scale_factor.is_finite() && d.scale_factor > 0.0 {
                 d.scale_factor
             } else {
                 1.0
             };
+            #[cfg(target_os = "macos")]
+            let scale = 1.0;
             let mut label = format!("Display {}", i + 1);
             if d.is_primary {
                 label += " (Primary - Current App)";

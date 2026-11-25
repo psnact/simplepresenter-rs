@@ -1364,10 +1364,7 @@ impl App {
             self.projector_open = true;
         }
         self.projector_fullscreen = !self.projector_fullscreen;
-        ctx.send_viewport_cmd_to(
-            projector_id(),
-            ViewportCommand::Fullscreen(self.projector_fullscreen),
-        );
+        self.send_projector_fullscreen(ctx);
     }
 
     // ----- panels -----
@@ -2784,6 +2781,59 @@ impl App {
         }
     }
 
+    /// Screen rect (origin and size, in logical points) of the display chosen
+    /// in Settings for the projection, or a fallback when no display is known.
+    fn projector_display_rect(&self) -> ([f32; 2], [f32; 2]) {
+        let idx = self
+            .settings
+            .projector_monitor
+            .min(self.displays.len().saturating_sub(1));
+        self.displays
+            .get(idx)
+            .map(|d| (d.pos, d.size))
+            .unwrap_or(([80.0, 80.0], [960.0, 540.0]))
+    }
+
+    /// Applies the projector's fullscreen state to its viewport. On macOS a
+    /// real fullscreen is a fullscreen Space that blanks every other monitor,
+    /// so the projection fakes it instead: a borderless window sized exactly
+    /// to the selected display.
+    fn send_projector_fullscreen(&self, ctx: &egui::Context) {
+        #[cfg(target_os = "macos")]
+        {
+            if self.projector_fullscreen {
+                let (pos, size) = self.projector_display_rect();
+                ctx.send_viewport_cmd_to(projector_id(), ViewportCommand::Decorations(false));
+                ctx.send_viewport_cmd_to(
+                    projector_id(),
+                    ViewportCommand::OuterPosition(egui::pos2(pos[0], pos[1])),
+                );
+                ctx.send_viewport_cmd_to(
+                    projector_id(),
+                    ViewportCommand::InnerSize(egui::vec2(size[0], size[1])),
+                );
+            } else {
+                let (pos, _) = self.projector_display_rect();
+                ctx.send_viewport_cmd_to(projector_id(), ViewportCommand::Decorations(true));
+                ctx.send_viewport_cmd_to(
+                    projector_id(),
+                    ViewportCommand::OuterPosition(egui::pos2(pos[0] + 40.0, pos[1] + 40.0)),
+                );
+                ctx.send_viewport_cmd_to(
+                    projector_id(),
+                    ViewportCommand::InnerSize(egui::vec2(960.0, 540.0)),
+                );
+            }
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            ctx.send_viewport_cmd_to(
+                projector_id(),
+                ViewportCommand::Fullscreen(self.projector_fullscreen),
+            );
+        }
+    }
+
     fn projector(&mut self, ctx: &egui::Context) {
         if !self.projector_open {
             self.projector_pos = None;
@@ -2812,78 +2862,74 @@ impl App {
             Some(p) => (p, [960.0, 540.0]),
             None => {
                 // Like the original app, the projection opens fullscreen on the
-                // selected display (F11 / double-click / Esc toggles). The window
-                // is created on that display first and switched to fullscreen on
-                // the next frame: a window created fullscreen goes to the primary
-                // monitor no matter where it was positioned.
+                // selected display (F11 / double-click / Esc toggles). Non-macOS:
+                // the window is created on that display first and switched to
+                // fullscreen on the next frame, because a window created
+                // fullscreen goes to the primary monitor regardless of position.
+                // macOS: a real fullscreen is a fullscreen Space that blanks the
+                // other monitors, so the borderless window covers the display
+                // directly instead (see send_projector_fullscreen).
                 self.projector_fullscreen = true;
-                self.projector_fs_pending = true;
                 self.projector_monitor = Some(self.settings.projector_monitor);
-                let idx = self
-                    .settings
-                    .projector_monitor
-                    .min(self.displays.len().saturating_sub(1));
-                match self.displays.get(idx) {
-                    Some(d) => {
-                        self.projector_pos = Some(d.pos);
-                        (d.pos, d.size)
-                    }
-                    None => {
-                        self.projector_pos = Some([80.0, 80.0]);
-                        ([80.0, 80.0], [960.0, 540.0])
-                    }
+                #[cfg(not(target_os = "macos"))]
+                {
+                    self.projector_fs_pending = true;
                 }
+                let (pos, size) = self.projector_display_rect();
+                self.projector_pos = Some(pos);
+                (pos, size)
             }
         };
-        ctx.show_viewport_immediate(
-            projector_id(),
-            ViewportBuilder::default()
-                .with_title("SimplePresenter — Projection")
-                .with_inner_size(size)
-                .with_position(pos)
-                .with_fullscreen(false),
-            |ui, _class| {
-                egui::CentralPanel::default()
-                    .frame(egui::Frame::NONE.fill(Color32::BLACK))
-                    .show(ui, |ui| {
-                        let rect = ui.max_rect();
-                        self.paint_live(ui, rect);
-                        let r = ui.allocate_rect(rect, egui::Sense::click());
-                        if r.double_clicked() {
-                            toggle_fs = true;
-                        }
-                    });
-                if ui.input(|i| i.viewport().close_requested()) {
-                    close = true;
-                }
-                let (esc, f11, next, prev) = ui.input(|i| {
-                    (
-                        i.key_pressed(Key::Escape),
-                        i.key_pressed(Key::F11),
-                        i.key_pressed(Key::ArrowRight) || i.key_pressed(Key::Space),
-                        i.key_pressed(Key::ArrowLeft),
-                    )
+        #[cfg(target_os = "macos")]
+        let builder = ViewportBuilder::default()
+            .with_title("SimplePresenter — Projection")
+            .with_inner_size(size)
+            .with_position(pos)
+            .with_decorations(false);
+        #[cfg(not(target_os = "macos"))]
+        let builder = ViewportBuilder::default()
+            .with_title("SimplePresenter — Projection")
+            .with_inner_size(size)
+            .with_position(pos)
+            .with_fullscreen(false);
+        ctx.show_viewport_immediate(projector_id(), builder, |ui, _class| {
+            egui::CentralPanel::default()
+                .frame(egui::Frame::NONE.fill(Color32::BLACK))
+                .show(ui, |ui| {
+                    let rect = ui.max_rect();
+                    self.paint_live(ui, rect);
+                    let r = ui.allocate_rect(rect, egui::Sense::click());
+                    if r.double_clicked() {
+                        toggle_fs = true;
+                    }
                 });
-                if f11 {
-                    toggle_fs = true;
-                }
-                if esc && self.projector_fullscreen {
-                    toggle_fs = true;
-                }
-                if next {
-                    self.step(true);
-                }
-                if prev {
-                    self.step(false);
-                }
-            },
-        );
+            if ui.input(|i| i.viewport().close_requested()) {
+                close = true;
+            }
+            let (esc, f11, next, prev) = ui.input(|i| {
+                (
+                    i.key_pressed(Key::Escape),
+                    i.key_pressed(Key::F11),
+                    i.key_pressed(Key::ArrowRight) || i.key_pressed(Key::Space),
+                    i.key_pressed(Key::ArrowLeft),
+                )
+            });
+            if f11 {
+                toggle_fs = true;
+            }
+            if esc && self.projector_fullscreen {
+                toggle_fs = true;
+            }
+            if next {
+                self.step(true);
+            }
+            if prev {
+                self.step(false);
+            }
+        });
         if toggle_fs {
             self.projector_fullscreen = !self.projector_fullscreen;
-            ctx.send_viewport_cmd_to(
-                projector_id(),
-                ViewportCommand::Fullscreen(self.projector_fullscreen),
-            );
+            self.send_projector_fullscreen(ctx);
         }
         if close {
             self.projector_open = false;
