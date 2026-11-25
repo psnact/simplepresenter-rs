@@ -120,6 +120,10 @@ pub struct App {
     projector_monitor: Option<usize>,
     /// Switch the just-created projector viewport to fullscreen on the next frame.
     projector_fs_pending: bool,
+    /// macOS: frames left to re-apply the display geometry after the projector
+    /// window is created (macOS adjusts windows after they first appear).
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    projector_geom_frames: u8,
     displays: Vec<crate::displays::Display>,
     textures: HashMap<String, Option<TextureHandle>>,
     status: String,
@@ -206,6 +210,7 @@ impl App {
             projector_pos: None,
             projector_monitor: None,
             projector_fs_pending: false,
+            projector_geom_frames: 0,
             displays: crate::displays::list(),
             textures: HashMap::new(),
             status: String::new(),
@@ -2839,6 +2844,7 @@ impl App {
             self.projector_pos = None;
             self.projector_monitor = None;
             self.projector_fs_pending = false;
+            self.projector_geom_frames = 0;
             return;
         }
         // The Projection Display setting changed while the projection is open:
@@ -2850,11 +2856,31 @@ impl App {
             self.projector_pos = None;
             self.projector_monitor = None;
             self.projector_fs_pending = false;
+            self.projector_geom_frames = 0;
             return;
         }
         if self.projector_fs_pending {
             self.projector_fs_pending = false;
             ctx.send_viewport_cmd_to(projector_id(), ViewportCommand::Fullscreen(true));
+        }
+        // macOS: re-apply the exact display geometry for a few frames after the
+        // window is created — the original app does the same (setGeometry after
+        // show) because macOS moves/resizes windows right after they appear.
+        #[cfg(target_os = "macos")]
+        {
+            if self.projector_geom_frames > 0 && self.projector_fullscreen {
+                self.projector_geom_frames -= 1;
+                let (pos, size) = self.projector_display_rect();
+                ctx.send_viewport_cmd_to(projector_id(), ViewportCommand::Decorations(false));
+                ctx.send_viewport_cmd_to(
+                    projector_id(),
+                    ViewportCommand::OuterPosition(egui::pos2(pos[0], pos[1])),
+                );
+                ctx.send_viewport_cmd_to(
+                    projector_id(),
+                    ViewportCommand::InnerSize(egui::vec2(size[0], size[1])),
+                );
+            }
         }
         let mut close = false;
         let mut toggle_fs = false;
@@ -2874,6 +2900,10 @@ impl App {
                 #[cfg(not(target_os = "macos"))]
                 {
                     self.projector_fs_pending = true;
+                }
+                #[cfg(target_os = "macos")]
+                {
+                    self.projector_geom_frames = 5;
                 }
                 let (pos, size) = self.projector_display_rect();
                 self.projector_pos = Some(pos);
@@ -2937,6 +2967,7 @@ impl App {
             self.projector_pos = None;
             self.projector_monitor = None;
             self.projector_fs_pending = false;
+            self.projector_geom_frames = 0;
         }
     }
 
