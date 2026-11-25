@@ -3837,8 +3837,17 @@ impl eframe::App for App {
                 .collapsible(false)
                 .show(&ctx, |ui| {
                     ui.heading(format!("SimplePresenter {}", env!("CARGO_PKG_VERSION")));
-                    ui.label("Bible and lyrics projection, rewritten in pure Rust (egui).");
-                    ui.hyperlink("https://github.com/psnact/SimplePresenter");
+                    ui.label("A lightweight Bible & Lyrics projection tool for churches.");
+                    ui.add_space(4.0);
+                    ui.label("Features:");
+                    for f in [
+                        "Bible verse projection with quick search",
+                        "Song lyrics with section-based display",
+                        "Service playlist management",
+                        "Projection preview canvas",
+                    ] {
+                        ui.label(format!("• {f}"));
+                    }
                 });
         }
     }

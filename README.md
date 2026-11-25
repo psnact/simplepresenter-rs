@@ -1,6 +1,6 @@
-# SimplePresenter (Rust)
+# SimplePresenter
 
-Bible and lyrics projection, rewritten in pure Rust with egui/eframe. Runs on Windows x64 and macOS (Apple Silicon and Intel, universal build).
+Bible and lyrics projection for churches. Runs on Windows x64 and macOS (Apple Silicon and Intel, universal build).
 
 ## Build and run
 
