@@ -1521,7 +1521,7 @@ impl App {
             }
         });
         ui.label("Search by Reference:");
-        let r = fill_text(
+        let (r, cleared) = fill_text(
             ui,
             &mut self.bible_ui.reference,
             "e.g. John 3:16 or John 3 16",
@@ -1530,7 +1530,7 @@ impl App {
             r.request_focus();
             self.bible_ui.focus_reference = false;
         }
-        if r.changed() {
+        if r.changed() || cleared {
             self.preview_reference();
         }
         if r.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
@@ -1626,7 +1626,7 @@ impl App {
         ui.label("Search in Text:");
         rtl_row(ui, |ui| {
             let search = ui.button("Search").clicked();
-            let r = fill_text(
+            let (r, _) = fill_text(
                 ui,
                 &mut self.bible_ui.search,
                 "Search for words in Bible text...",
@@ -1760,7 +1760,7 @@ impl App {
                 .clicked();
             new_song = ui.button("Add Song").clicked();
             reload = ui.button("Refresh").clicked();
-            let r = fill_text(ui, &mut self.song_ui.search, "Search songs...");
+            let (r, _) = fill_text(ui, &mut self.song_ui.search, "Search songs...");
             if self.song_ui.focus_search {
                 r.request_focus();
                 self.song_ui.focus_search = false;
@@ -3670,13 +3670,60 @@ fn playlist_filter_matches(filter: usize, it: &Item) -> bool {
     }
 }
 
-/// A single-line text field filling the rest of the row (exactly, so side panels don't grow).
-fn fill_text(ui: &mut Ui, text: &mut String, hint: &str) -> egui::Response {
+/// A single-line search field filling the rest of the row (exactly, so side panels don't grow),
+/// with a leading X that clears the text — like the original app's QLineEdit leading clear action.
+/// Returns the field response and whether the X was clicked this frame.
+fn fill_text(ui: &mut Ui, text: &mut String, hint: &str) -> (egui::Response, bool) {
     let h = ui.spacing().interact_size.y;
-    ui.add_sized(
+    let has_text = !text.is_empty();
+    // Default TextEdit margin is Margin::symmetric(4, 2); with text present,
+    // add room on the left so the text starts after the X.
+    let margin = if has_text {
+        egui::Margin {
+            left: 20,
+            right: 4,
+            top: 2,
+            bottom: 2,
+        }
+    } else {
+        egui::Margin::symmetric(4, 2)
+    };
+    let r = ui.add_sized(
         [ui.available_width().max(40.0), h],
-        egui::TextEdit::singleline(text).hint_text(hint),
-    )
+        egui::TextEdit::singleline(text)
+            .hint_text(hint)
+            .margin(margin),
+    );
+    let mut cleared = false;
+    if has_text {
+        let x_rect = egui::Rect::from_center_size(
+            egui::pos2(r.rect.left() + 10.0, r.rect.center().y),
+            egui::vec2(12.0, 12.0),
+        );
+        let resp = ui.interact(x_rect, r.id.with("leading_clear"), egui::Sense::click());
+        let color = if resp.hovered() {
+            ui.visuals().text_color()
+        } else {
+            ui.visuals().weak_text_color()
+        };
+        let c = x_rect.center();
+        let a = 3.5;
+        let stroke = egui::Stroke::new(1.5, color);
+        ui.painter().line_segment(
+            [egui::pos2(c.x - a, c.y - a), egui::pos2(c.x + a, c.y + a)],
+            stroke,
+        );
+        ui.painter().line_segment(
+            [egui::pos2(c.x + a, c.y - a), egui::pos2(c.x - a, c.y + a)],
+            stroke,
+        );
+        if resp.clicked() {
+            text.clear();
+            r.request_focus();
+            cleared = true;
+        }
+    }
+    (r, cleared)
 }
 
 impl eframe::App for App {
