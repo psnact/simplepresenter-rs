@@ -1,4 +1,4 @@
-//! Main window: Bible/Songs tabs, playlist, live preview, history/notes, projector window.
+//! Main window: Bible/Songs tabs, playlist, live preview, history, projector window.
 
 use crate::media;
 
@@ -51,7 +51,6 @@ enum Tab {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum SideTab {
     History,
-    Notes,
     YouTube,
     Google,
 }
@@ -305,19 +304,6 @@ impl App {
 
     fn overlay(&self) -> OverlayConfig {
         match &self.content {
-            Content::Lyrics { title, .. } if title == NOTES_TITLE => {
-                let s = &self.settings;
-                let background = if s.separate_backgrounds {
-                    s.notes_background.clone()
-                } else {
-                    s.bible_overlay.background.clone()
-                };
-                OverlayConfig {
-                    background,
-                    show_reference: false,
-                    ..s.bible_overlay.clone()
-                }
-            }
             Content::Lyrics { .. } => {
                 let mut cfg = self.settings.song_overlay.clone();
                 // The song line spacing is re-based at the user's request: the spacing that
@@ -2617,7 +2603,6 @@ impl App {
             &mut self.side_tab,
             &[
                 (SideTab::History, "History"),
-                (SideTab::Notes, "Notes"),
                 (SideTab::YouTube, "YouTube"),
                 (SideTab::Google, "Google"),
             ],
@@ -2625,36 +2610,6 @@ impl App {
         ui.add_space(2.0);
         match self.side_tab {
             SideTab::History => self.history_view(ui),
-            SideTab::Notes => {
-                let live =
-                    matches!(&self.content, Content::Lyrics { title, .. } if title == NOTES_TITLE);
-                let mut show = live;
-                ui.checkbox(&mut show, "Show notes on projection");
-                let h = ui.available_height();
-                let mut edited = false;
-                list_box(ui, "notes", h, |ui| {
-                    edited = ui
-                        .add_sized(
-                            ui.available_size(),
-                            egui::TextEdit::multiline(&mut self.settings.notes)
-                                .frame(egui::Frame::NONE),
-                        )
-                        .changed();
-                });
-                if show && (!live || edited) {
-                    let text = self.settings.notes.clone();
-                    self.set_live(
-                        Content::Lyrics {
-                            text,
-                            title: NOTES_TITLE.into(),
-                        },
-                        Source::None,
-                        "Notes".into(),
-                    );
-                } else if !show && live {
-                    self.clear();
-                }
-            }
             SideTab::YouTube => self.web_tab(ui, true),
             SideTab::Google => self.web_tab(ui, false),
         }
@@ -2951,7 +2906,7 @@ impl App {
         }
     }
 
-    /// Saves settings changed outside the Settings dialog (Bible choice, notes, etc.)
+    /// Saves settings changed outside the Settings dialog (Bible choice, etc.)
     /// so they survive a crash or forced close; the dialog itself saves on OK.
     fn autosave(&mut self, ctx: &egui::Context) {
         let now = ctx.input(|i| i.time);
@@ -3032,7 +2987,6 @@ impl App {
                             s.song_overlay.background = s.bible_overlay.background.clone();
                         }
                         sui::background(ui, "Song Lyrics Background", &mut s.song_overlay.background, "bg-song", sep);
-                        sui::background(ui, "Notes Background", &mut s.notes_background, "bg-notes", sep);
                     }
                     2 => {
                         let ip = remote::lan_ip();
@@ -3159,9 +3113,7 @@ impl App {
                     != self.settings.overlay_server_enabled
                     || old.overlay_server_port != self.settings.overlay_server_port;
                 let bible_changed = old.last_bible != self.settings.last_bible;
-                let notes = std::mem::take(&mut self.settings.notes);
                 self.settings = old;
-                self.settings.notes = notes;
                 restart_server |= server_changed;
                 theme_changed = true;
                 if bible_changed {
@@ -3367,8 +3319,6 @@ impl App {
         }
     }
 }
-
-const NOTES_TITLE: &str = "\u{1}notes";
 
 /// A free name for `src` in `dir`, as the original: `name.ext`, then `name_1.ext`, `name_2.ext`...
 fn unique_path(dir: &std::path::Path, src: &std::path::Path) -> Option<PathBuf> {

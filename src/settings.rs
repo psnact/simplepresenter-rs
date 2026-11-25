@@ -206,7 +206,6 @@ pub struct Settings {
     pub overlay_server_port: u16,
     pub song_lines_per_slide: usize,
     pub bible_verses_per_slide: usize,
-    pub notes: String,
     pub dark_mode: bool,
     pub check_updates: bool,
     pub ui_scale: f32,
@@ -215,7 +214,6 @@ pub struct Settings {
     pub obs_canvas: [u32; 2],
     pub pause_video_in_preview: bool,
     pub show_background_in_preview: bool,
-    pub notes_background: Background,
 }
 
 impl Default for Settings {
@@ -236,7 +234,6 @@ impl Default for Settings {
             overlay_server_port: 8080,
             song_lines_per_slide: 0,
             bible_verses_per_slide: 1,
-            notes: String::new(),
             dark_mode: true,
             check_updates: true,
             ui_scale: 1.0,
@@ -261,7 +258,6 @@ impl Default for Settings {
             obs_canvas: [1920, 1080],
             pause_video_in_preview: false,
             show_background_in_preview: true,
-            notes_background: Background::default(),
         }
     }
 }

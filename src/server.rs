@@ -38,9 +38,6 @@ pub struct Data {
     pub has_youtube: bool,
     #[serde(rename = "youTubeUrl")]
     pub youtube_url: String,
-    pub notes_visible: bool,
-    pub notes_html: String,
-    pub notes_image_timestamp: i64,
     pub blackout: bool,
     pub media_fullscreen: bool,
     pub style_version: u64,
@@ -619,7 +616,6 @@ mod tests {
             "mediaIsVideo",
             "hasYouTube",
             "youTubeUrl",
-            "notesImageTimestamp",
             "mediaFullscreen",
         ] {
             assert!(v.get(k).is_some(), "{k}");
