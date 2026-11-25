@@ -294,7 +294,6 @@ impl App {
                 self.bible_ui.book = b.books.first().map(|b| b.name.clone()).unwrap_or_default();
                 self.bible_ui.chapter = 1;
                 self.bible_ui.selected = None;
-                self.status = format!("Loaded {} ({})", b.translation, b.acronym);
                 self.bible = Some(b);
                 self.settings.last_bible = path.to_string_lossy().into_owned();
             }
@@ -3677,10 +3676,10 @@ fn fill_text(ui: &mut Ui, text: &mut String, hint: &str) -> (egui::Response, boo
     let h = ui.spacing().interact_size.y;
     let has_text = !text.is_empty();
     // Default TextEdit margin is Margin::symmetric(4, 2); with text present,
-    // add room on the left so the text starts after the X.
+    // add room on the left so the text starts after the clear button.
     let margin = if has_text {
         egui::Margin {
-            left: 20,
+            left: 22,
             right: 4,
             top: 2,
             bottom: 2,
@@ -3696,19 +3695,28 @@ fn fill_text(ui: &mut Ui, text: &mut String, hint: &str) -> (egui::Response, boo
     );
     let mut cleared = false;
     if has_text {
-        let x_rect = egui::Rect::from_center_size(
-            egui::pos2(r.rect.left() + 10.0, r.rect.center().y),
-            egui::vec2(12.0, 12.0),
+        // Small button with an X, like the original app's clear action.
+        let btn_rect = egui::Rect::from_center_size(
+            egui::pos2(r.rect.left() + 11.0, r.rect.center().y),
+            egui::vec2(16.0, 16.0),
         );
-        let resp = ui.interact(x_rect, r.id.with("leading_clear"), egui::Sense::click());
-        let color = if resp.hovered() {
-            ui.visuals().text_color()
+        let resp = ui.interact(btn_rect, r.id.with("leading_clear"), egui::Sense::click());
+        let widgets = &ui.visuals().widgets;
+        let (bg, fg) = if resp.hovered() {
+            (widgets.hovered.bg_fill, widgets.hovered.fg_stroke.color)
         } else {
-            ui.visuals().weak_text_color()
+            (widgets.inactive.bg_fill, widgets.inactive.fg_stroke.color)
         };
-        let c = x_rect.center();
+        ui.painter().rect_filled(btn_rect, 4.0, bg);
+        ui.painter().rect_stroke(
+            btn_rect,
+            4.0,
+            egui::Stroke::new(1.0, widgets.noninteractive.bg_stroke.color),
+            egui::StrokeKind::Inside,
+        );
+        let c = btn_rect.center();
         let a = 3.5;
-        let stroke = egui::Stroke::new(1.5, color);
+        let stroke = egui::Stroke::new(1.5, fg);
         ui.painter().line_segment(
             [egui::pos2(c.x - a, c.y - a), egui::pos2(c.x + a, c.y + a)],
             stroke,
